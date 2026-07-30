@@ -216,8 +216,6 @@ class _CreateInventoryScreenState extends State<CreateInventoryScreen> {
               ],
             ),
           ),
-        ),
-      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

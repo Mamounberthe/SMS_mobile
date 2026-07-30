@@ -14,7 +14,6 @@ import '../services/product_service.dart';
 import '../services/reference_service.dart';
 import '../services/template_service.dart';
 import '../theme.dart';
-import '../utils/format.dart';
 import '../utils/page_transitions.dart';
 import '../utils/validation.dart';
 import '../widgets/app_card.dart';
@@ -544,7 +543,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               ],
             ),
           ),
-        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

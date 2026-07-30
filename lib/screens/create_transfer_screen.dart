@@ -234,7 +234,6 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
               ],
             ),
           ),
-        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),
@@ -262,43 +261,41 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
 
   Widget _lineCard(AppSurface s, _Line line) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
+      padding: const EdgeInsets.all(Insets.md),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(Radii.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(line.product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (line.product.code.isNotEmpty)
+                  Text(line.product.code, style: TextStyle(color: s.muted, fontSize: 12)),
+              ],
             ),
-            child: const Icon(Icons.inventory_2_outlined, color: AppColors.brand, size: 18),
           ),
           const SizedBox(width: Insets.md),
-          Expanded(
-            child: Text(
-              line.product.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          SizedBox(
+            width: 80,
+            child: TextField(
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Qté',
+                contentPadding: EdgeInsets.symmetric(horizontal: Insets.sm, vertical: Insets.xs),
+              ),
+              controller: TextEditingController(text: line.qty.toString()),
+              onChanged: (v) {
+                final q = int.tryParse(v);
+                if (q != null && q > 0) {
+                  setState(() => line.qty = q);
+                }
+              },
             ),
           ),
+          const SizedBox(width: Insets.sm),
           IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            color: s.muted,
-            onPressed: () => setState(() {
-              if (line.qty > 1) {
-                line.qty--;
-              } else {
-                _lines.remove(line);
-              }
-            }),
-          ),
-          Text('${line.qty}', style: TextStyle(fontWeight: FontWeight.bold, color: s.text)),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            color: AppColors.brand,
-            onPressed: () => setState(() => line.qty++),
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () => setState(() => _lines.remove(line)),
           ),
         ],
       ),

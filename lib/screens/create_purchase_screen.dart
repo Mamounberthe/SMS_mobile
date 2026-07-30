@@ -243,7 +243,6 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
               ],
             ),
           ),
-        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

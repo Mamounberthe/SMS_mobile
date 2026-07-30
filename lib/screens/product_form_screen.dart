@@ -207,7 +207,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             ),
           ),
         ),
-      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),
