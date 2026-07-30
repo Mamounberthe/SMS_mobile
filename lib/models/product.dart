@@ -1,4 +1,6 @@
 /// Produit — miroir de ProductResource.
+import '../utils/validation.dart';
+
 class Product {
   final int id;
   final String code;
@@ -46,7 +48,7 @@ class Product {
         salePrice: (json['sale_price'] ?? 0) as int,
         minStock: (json['min_stock'] ?? 0) as int,
         unit: (json['unit'] ?? 'unité') as String,
-        isActive: (json['is_active'] ?? true) as bool,
+        isActive: parseBool(json['is_active'] ?? true),
         totalQuantity: json['total_quantity'] as int?,
       );
 

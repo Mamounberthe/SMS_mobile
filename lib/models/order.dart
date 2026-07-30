@@ -1,4 +1,6 @@
 /// Ligne de commande — miroir d'un item de OrderResource.
+import '../utils/validation.dart';
+
 class OrderItem {
   final int id;
   final int productId;
@@ -63,11 +65,6 @@ class Order {
         storeName: json['store'] is Map ? json['store']['name'] as String? : null,
         status: json['status'] as String,
         requesterName: json['requester'] is Map ? json['requester']['name'] as String? : null,
-        items: json['items'] is List
-            ? (json['items'] as List)
-                .cast<Map<String, dynamic>>()
-                .map(OrderItem.fromJson)
-                .toList()
-            : const [],
+        items: safeCastMapList(json['items']).map(OrderItem.fromJson).toList(),
       );
 }

@@ -136,75 +136,78 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       appBar: AppBar(title: Text(widget.isEdit ? 'Modifier le produit' : 'Nouveau produit')),
       body: _loading
           ? const SkeletonList()
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: formPadding(context),
-                children: [
-                  AppCard(
-                    child: Column(
-                      children: [
-                        _field(_name, 'Nom *', validator: _required),
-                        const SizedBox(height: Insets.md),
-                        _field(_code, 'Code *', validator: _required),
-                        const SizedBox(height: Insets.md),
-                        _field(_reference, 'Référence'),
-                        const SizedBox(height: Insets.md),
-                        DropdownButtonFormField<int>(
-                          initialValue: _categoryId,
-                          decoration: const InputDecoration(labelText: 'Catégorie *', prefixIcon: Icon(Icons.category)),
-                          items: _categories
-                              .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _categoryId = v),
-                        ),
-                        const SizedBox(height: Insets.md),
-                        DropdownButtonFormField<int?>(
-                          initialValue: _supplierId,
-                          decoration: const InputDecoration(labelText: 'Fournisseur', prefixIcon: Icon(Icons.business)),
-                          items: [
-                            const DropdownMenuItem<int?>(value: null, child: Text('—')),
-                            ..._suppliers.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
-                          ],
-                          onChanged: (v) => setState(() => _supplierId = v),
-                        ),
-                        const SizedBox(height: Insets.md),
-                        _field(_brand, 'Marque'),
-                      ],
-                    ),
+          : FormWrap(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: formPadding(context),
+                  children: [
+                AppCard(
+                  child: Column(
+                    children: [
+                      _field(_name, 'Nom *', validator: _required),
+                      const SizedBox(height: Insets.md),
+                      _field(_code, 'Code *', validator: _required),
+                      const SizedBox(height: Insets.md),
+                      _field(_reference, 'Référence'),
+                      const SizedBox(height: Insets.md),
+                      DropdownButtonFormField<int>(
+                        initialValue: _categoryId,
+                        decoration: const InputDecoration(labelText: 'Catégorie *', prefixIcon: Icon(Icons.category)),
+                        items: _categories
+                            .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                            .toList(),
+                        onChanged: (v) => setState(() => _categoryId = v),
+                      ),
+                      const SizedBox(height: Insets.md),
+                      DropdownButtonFormField<int?>(
+                        initialValue: _supplierId,
+                        decoration: const InputDecoration(labelText: 'Fournisseur', prefixIcon: Icon(Icons.business)),
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('—')),
+                          ..._suppliers.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
+                        ],
+                        onChanged: (v) => setState(() => _supplierId = v),
+                      ),
+                      const SizedBox(height: Insets.md),
+                      _field(_brand, 'Marque'),
+                    ],
                   ),
-                  const SizedBox(height: Insets.md),
-                  AppCard(
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: _field(_purchase, "Prix d'achat (XOF)", number: true)),
-                            const SizedBox(width: Insets.md),
-                            Expanded(child: _field(_sale, 'Prix de vente (XOF)', number: true)),
-                          ],
-                        ),
-                        const SizedBox(height: Insets.md),
-                        Row(
-                          children: [
-                            Expanded(child: _field(_minStock, 'Stock minimum', number: true)),
-                            const SizedBox(width: Insets.md),
-                            Expanded(child: _field(_unit, 'Unité')),
-                          ],
-                        ),
-                        SwitchListTile(
-                          value: _isActive,
-                          onChanged: (v) => setState(() => _isActive = v),
-                          title: const Text('Produit actif'),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: Insets.md),
+                AppCard(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: _field(_purchase, "Prix d'achat (XOF)", number: true)),
+                          const SizedBox(width: Insets.md),
+                          Expanded(child: _field(_sale, 'Prix de vente (XOF)', number: true)),
+                        ],
+                      ),
+                      const SizedBox(height: Insets.md),
+                      Row(
+                        children: [
+                          Expanded(child: _field(_minStock, 'Stock minimum', number: true)),
+                          const SizedBox(width: Insets.md),
+                          Expanded(child: _field(_unit, 'Unité')),
+                        ],
+                      ),
+                      SwitchListTile(
+                        value: _isActive,
+                        onChanged: (v) => setState(() => _isActive = v),
+                        title: const Text('Produit actif'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: Insets.xxl),
-                ],
-              ),
+                ),
+                const SizedBox(height: Insets.xxl),
+              ],
             ),
+          ),
+        ),
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

@@ -79,6 +79,8 @@ class OfflineService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         store_id INTEGER,
         items TEXT,
+        notes TEXT,
+        retry_count INTEGER DEFAULT 0,
         created_at INTEGER
       )
     ''');
@@ -100,7 +102,9 @@ class OfflineService {
       CREATE TABLE pending_purchases(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         supplier_id INTEGER,
+        location_id INTEGER,
         items TEXT,
+        retry_count INTEGER DEFAULT 0,
         created_at INTEGER
       )
     ''');
@@ -112,6 +116,7 @@ class OfflineService {
         to_location_id INTEGER,
         items TEXT,
         is_return INTEGER,
+        retry_count INTEGER DEFAULT 0,
         created_at INTEGER
       )
     ''');
@@ -122,6 +127,18 @@ class OfflineService {
         location_id INTEGER,
         type TEXT,
         items TEXT,
+        retry_count INTEGER DEFAULT 0,
+        created_at INTEGER
+      )
+    ''');
+
+    // Dead letter queue for failed sync operations after max retries
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS dead_letter(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT,
+        data TEXT,
+        error TEXT,
         created_at INTEGER
       )
     ''');
@@ -140,7 +157,7 @@ class OfflineService {
 
     // Références génériques (lieux / fournisseurs / catégories).
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS references(
+      CREATE TABLE IF NOT EXISTS reference_cache(
         key TEXT PRIMARY KEY,
         data TEXT,
         cached_at INTEGER
@@ -233,25 +250,27 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('products');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final product in products) {
-      batch.insert('products', {
-        'id': product.id,
-        'code': product.code,
-        'reference': product.reference,
-        'name': product.name,
-        'category_name': product.categoryName,
-        'brand': product.brand,
-        'purchase_price': product.purchasePrice,
-        'sale_price': product.salePrice,
-        'min_stock': product.minStock,
-        'unit': product.unit,
-        'is_active': product.isActive ? 1 : 0,
-        'total_quantity': product.totalQuantity,
-        'cached_at': now,
-      });
+      batch.insert(
+        'products',
+        {
+          'id': product.id,
+          'code': product.code,
+          'reference': product.reference,
+          'name': product.name,
+          'category_name': product.categoryName,
+          'brand': product.brand,
+          'purchase_price': product.purchasePrice,
+          'sale_price': product.salePrice,
+          'min_stock': product.minStock,
+          'unit': product.unit,
+          'is_active': product.isActive ? 1 : 0,
+          'total_quantity': product.totalQuantity,
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -395,25 +414,27 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('orders');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final order in orders) {
-      batch.insert('orders', {
-        'id': order.id,
-        'reference': order.reference,
-        'store_id': order.storeId,
-        'store_name': order.storeName,
-        'status': order.status,
-        'requester_name': order.requesterName,
-        'items': jsonEncode(order.items.map((i) => {
-          'id': i.id,
-          'product_id': i.productId,
-          'product_name': i.productName,
-          'quantity_requested': i.quantityRequested,
-        }).toList()),
-        'cached_at': now,
-      });
+      batch.insert(
+        'orders',
+        {
+          'id': order.id,
+          'reference': order.reference,
+          'store_id': order.storeId,
+          'store_name': order.storeName,
+          'status': order.status,
+          'requester_name': order.requesterName,
+          'items': jsonEncode(order.items.map((i) => {
+            'id': i.id,
+            'product_id': i.productId,
+            'product_name': i.productName,
+            'quantity_requested': i.quantityRequested,
+          }).toList()),
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -423,14 +444,20 @@ class OfflineService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('orders');
 
-    return maps.map((map) => Order(
-      id: map['id'] as int,
-      reference: map['reference'] as String,
-      storeId: map['store_id'] as int,
-      storeName: map['store_name'] as String?,
-      status: map['status'] as String,
-      requesterName: map['requester_name'] as String?,
-    )).toList();
+    return maps.map((map) {
+      final m = Map<String, dynamic>.from(map);
+      if (m['items'] is String && (m['items'] as String).isNotEmpty) {
+        try {
+          final itemsRaw = jsonDecode(m['items'] as String) as List;
+          m['items'] = itemsRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } catch (_) {
+          m['items'] = [];
+        }
+      } else {
+        m['items'] = m['items'] ?? [];
+      }
+      return Order.fromJson(m);
+    }).toList();
   }
 
   // ===== ACHATS CACHE (lecture) =====
@@ -439,26 +466,28 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('purchases');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final p in purchases) {
-      batch.insert('purchases', {
-        'id': p.id,
-        'reference': p.reference,
-        'supplier_id': p.supplierId,
-        'supplier_name': p.supplierName,
-        'status': p.status,
-        'total_amount': p.totalAmount,
-        'items': jsonEncode(p.items.map((i) => {
-          'id': i.id,
-          'product_id': i.productId,
-          'product_name': i.productName,
-          'quantity': i.quantity,
-          'unit_price': i.unitPrice,
-        }).toList()),
-        'cached_at': now,
-      });
+      batch.insert(
+        'purchases',
+        {
+          'id': p.id,
+          'reference': p.reference,
+          'supplier_id': p.supplierId,
+          'supplier_name': p.supplierName,
+          'status': p.status,
+          'total_amount': p.totalAmount,
+          'items': jsonEncode(p.items.map((i) => {
+            'id': i.id,
+            'product_id': i.productId,
+            'product_name': i.productName,
+            'quantity': i.quantity,
+            'unit_price': i.unitPrice,
+          }).toList()),
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -468,14 +497,20 @@ class OfflineService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('purchases');
 
-    return maps.map((map) => Purchase(
-      id: map['id'] as int,
-      reference: map['reference'] as String,
-      supplierId: (map['supplier_id'] as int?) ?? 0,
-      supplierName: map['supplier_name'] as String?,
-      status: (map['status'] as String?) ?? 'ordered',
-      totalAmount: (map['total_amount'] as int?) ?? 0,
-    )).toList();
+    return maps.map((map) {
+      final m = Map<String, dynamic>.from(map);
+      if (m['items'] is String && (m['items'] as String).isNotEmpty) {
+        try {
+          final itemsRaw = jsonDecode(m['items'] as String) as List;
+          m['items'] = itemsRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } catch (_) {
+          m['items'] = [];
+        }
+      } else {
+        m['items'] = m['items'] ?? [];
+      }
+      return Purchase.fromJson(m);
+    }).toList();
   }
 
   // ===== TRANSFERTS CACHE (lecture) =====
@@ -484,27 +519,29 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('transfers');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final t in transfers) {
-      batch.insert('transfers', {
-        'id': t.id,
-        'reference': t.reference,
-        'from_location_id': t.fromLocationId,
-        'from_name': t.fromName,
-        'to_location_id': t.toLocationId,
-        'to_name': t.toName,
-        'status': t.status,
-        'is_return': t.isReturn ? 1 : 0,
-        'items': jsonEncode(t.items.map((i) => {
-          'id': i.id,
-          'product_id': i.productId,
-          'product_name': i.productName,
-          'quantity': i.quantity,
-        }).toList()),
-        'cached_at': now,
-      });
+      batch.insert(
+        'transfers',
+        {
+          'id': t.id,
+          'reference': t.reference,
+          'from_location_id': t.fromLocationId,
+          'from_name': t.fromName,
+          'to_location_id': t.toLocationId,
+          'to_name': t.toName,
+          'status': t.status,
+          'is_return': t.isReturn ? 1 : 0,
+          'items': jsonEncode(t.items.map((i) => {
+            'id': i.id,
+            'product_id': i.productId,
+            'product_name': i.productName,
+            'quantity': i.quantity,
+          }).toList()),
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -514,16 +551,20 @@ class OfflineService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('transfers');
 
-    return maps.map((map) => Transfer(
-      id: map['id'] as int,
-      reference: map['reference'] as String,
-      fromLocationId: (map['from_location_id'] as int?) ?? 0,
-      fromName: map['from_name'] as String?,
-      toLocationId: (map['to_location_id'] as int?) ?? 0,
-      toName: map['to_name'] as String?,
-      status: (map['status'] as String?) ?? 'draft',
-      isReturn: ((map['is_return'] as int?) ?? 0) == 1,
-    )).toList();
+    return maps.map((map) {
+      final m = Map<String, dynamic>.from(map);
+      if (m['items'] is String && (m['items'] as String).isNotEmpty) {
+        try {
+          final itemsRaw = jsonDecode(m['items'] as String) as List;
+          m['items'] = itemsRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } catch (_) {
+          m['items'] = [];
+        }
+      } else {
+        m['items'] = m['items'] ?? [];
+      }
+      return Transfer.fromJson(m);
+    }).toList();
   }
 
   // ===== INVENTAIRES CACHE (lecture) =====
@@ -532,25 +573,27 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('inventories');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final inv in inventories) {
-      batch.insert('inventories', {
-        'id': inv.id,
-        'reference': inv.reference,
-        'location_id': inv.locationId,
-        'location_name': inv.locationName,
-        'type': inv.type,
-        'status': inv.status,
-        'items': jsonEncode(inv.items.map((i) => {
-          'id': i.id,
-          'product_id': i.productId,
-          'product_name': i.productName,
-          'system_quantity': i.systemQuantity,
-        }).toList()),
-        'cached_at': now,
-      });
+      batch.insert(
+        'inventories',
+        {
+          'id': inv.id,
+          'reference': inv.reference,
+          'location_id': inv.locationId,
+          'location_name': inv.locationName,
+          'type': inv.type,
+          'status': inv.status,
+          'items': jsonEncode(inv.items.map((i) => {
+            'id': i.id,
+            'product_id': i.productId,
+            'product_name': i.productName,
+            'system_quantity': i.systemQuantity,
+          }).toList()),
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -560,14 +603,20 @@ class OfflineService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('inventories');
 
-    return maps.map((map) => Inventory(
-      id: map['id'] as int,
-      reference: map['reference'] as String,
-      locationId: (map['location_id'] as int?) ?? 0,
-      locationName: map['location_name'] as String?,
-      type: (map['type'] as String?) ?? 'partial',
-      status: (map['status'] as String?) ?? 'open',
-    )).toList();
+    return maps.map((map) {
+      final m = Map<String, dynamic>.from(map);
+      if (m['items'] is String && (m['items'] as String).isNotEmpty) {
+        try {
+          final itemsRaw = jsonDecode(m['items'] as String) as List;
+          m['items'] = itemsRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } catch (_) {
+          m['items'] = [];
+        }
+      } else {
+        m['items'] = m['items'] ?? [];
+      }
+      return Inventory.fromJson(m);
+    }).toList();
   }
 
   // ===== STOCKS CACHE (lecture) =====
@@ -576,21 +625,23 @@ class OfflineService {
     final db = await database;
     final batch = db.batch();
 
-    batch.delete('stocks');
-
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final st in stocks) {
-      batch.insert('stocks', {
-        'id': st.id,
-        'product_id': st.productId,
-        'product_name': st.productName,
-        'location_id': st.locationId,
-        'location_name': st.location?.name,
-        'quantity': st.quantity,
-        'available': st.available,
-        'reserved_quantity': st.reservedQuantity,
-        'cached_at': now,
-      });
+      batch.insert(
+        'stocks',
+        {
+          'id': st.id,
+          'product_id': st.productId,
+          'product_name': st.productName,
+          'location_id': st.locationId,
+          'location_name': st.location?.name,
+          'quantity': st.quantity,
+          'available': st.available,
+          'reserved_quantity': st.reservedQuantity,
+          'cached_at': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     await batch.commit(noResult: true);
@@ -662,13 +713,56 @@ class OfflineService {
     await db.delete('current_user');
   }
 
+  /// Purge la session utilisateur (token, user) mais CONSERVE les files d'attente.
+  Future<void> clearSession() async {
+    final db = await database;
+    await db.delete('current_user');
+    // On NE supprime PAS pending_orders, pending_purchases, pending_transfers, pending_inventories
+  }
+
+  // ===== DEAD LETTER QUEUE =====
+
+  Future<void> moveToDeadLetter(String type, Map<String, dynamic> data, String error) async {
+    final db = await database;
+    await db.insert('dead_letter', {
+      'type': type,
+      'data': jsonEncode(data),
+      'error': error,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getDeadLetters() async {
+    final db = await database;
+    return await db.query('dead_letter', orderBy: 'created_at DESC');
+  }
+
+  Future<void> clearDeadLetter(int id) async {
+    final db = await database;
+    await db.delete('dead_letter', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ===== RETRY COUNT =====
+
+  Future<void> incrementRetryCount(String table, int id) async {
+    final db = await database;
+    await db.rawUpdate('UPDATE $table SET retry_count = retry_count + 1 WHERE id = ?', [id]);
+  }
+
+  Future<int> getRetryCount(String table, int id) async {
+    final db = await database;
+    final result = await db.query(table, columns: ['retry_count'], where: 'id = ?', whereArgs: [id]);
+    if (result.isEmpty) return 0;
+    return (result.first['retry_count'] as int?) ?? 0;
+  }
+
   // ===== RÉFÉRENCES (lieux / fournisseurs / catégories) =====
 
   Future<void> _cacheReference(String key, List<dynamic> items) async {
     final db = await database;
     final now = DateTime.now().millisecondsSinceEpoch;
     await db.insert(
-      'references',
+      'reference_cache',
       {
         'key': key,
         'data': jsonEncode(items.map((i) {
@@ -697,7 +791,7 @@ class OfflineService {
 
   Future<List<Map<String, dynamic>>> _getReference(String key) async {
     final db = await database;
-    final maps = await db.query('references', where: 'key = ?', whereArgs: [key], limit: 1);
+    final maps = await db.query('reference_cache', where: 'key = ?', whereArgs: [key], limit: 1);
     if (maps.isEmpty) return const [];
     try {
       final data = maps.first['data'];
@@ -731,7 +825,7 @@ class OfflineService {
     await db.delete('transfers');
     await db.delete('inventories');
     await db.delete('stocks');
-    await db.delete('references');
+    await db.delete('reference_cache');
     // On conserve `pending_*` (file d'attente) et `current_user` (session).
   }
 
@@ -744,7 +838,7 @@ class OfflineService {
     await db.delete('transfers');
     await db.delete('inventories');
     await db.delete('stocks');
-    await db.delete('references');
+    await db.delete('reference_cache');
     await db.delete('current_user');
     await db.delete('pending_orders');
     await db.delete('pending_purchases');

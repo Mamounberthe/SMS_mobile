@@ -1,4 +1,5 @@
 import '../models/comment.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// Service pour gérer les commentaires sur les commandes
@@ -9,7 +10,7 @@ class CommentService {
   /// Récupérer tous les commentaires d'une commande
   Future<List<Comment>> list(int orderId) async {
     final res = await api.dio.get('/orders/$orderId/comments');
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(Comment.fromJson).toList();
   }
 

@@ -20,7 +20,7 @@ typedef OrderAction = ({String label, String endpoint, IconData icon, Color colo
 
 /// Actions disponibles selon le statut courant (cycle simplifié : Envoyée -> Reçue).
 List<OrderAction> _actionsFor(String status) {
-  const fulfill = (label: 'Livrer', endpoint: 'fulfill', icon: Icons.local_shipping, color: Colors.green, destructive: false);
+  const fulfill = (label: 'Livrer', endpoint: 'fulfill', icon: Icons.local_shipping, color: Colors.green, destructive: true);
   const cancel = (label: 'Annuler', endpoint: 'cancel', icon: Icons.cancel, color: Colors.red, destructive: true);
 
   return switch (status) {
@@ -82,11 +82,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     setState(() => _loadingComments = true);
     try {
       final comments = await _commentService.list(widget.orderId);
-      setState(() => _comments = comments);
+      if (mounted) setState(() => _comments = comments);
     } catch (_) {
       // Silencieux - les commentaires sont optionnels
     } finally {
-      setState(() => _loadingComments = false);
+      if (mounted) setState(() => _loadingComments = false);
     }
   }
 
@@ -115,6 +115,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _runAction(OrderAction a) async {
     // La livraison ouvre la feuille de réception (quantités ligne par ligne).
     if (a.endpoint == 'fulfill') {
+      final ok = await confirmAction(context,
+          title: 'Livrer la commande ?',
+          message: 'Vous allez confirmer la réception et livrer les articles.',
+          confirmLabel: 'Livrer',
+          danger: a.destructive);
+      if (!ok) return;
       await _receiveOrder();
       return;
     }

@@ -168,7 +168,15 @@ class AnalyticsService {
   Future<void> _saveEvent(Map<String, dynamic> event) async {
     final prefs = await SharedPreferences.getInstance();
     final eventsJson = prefs.getString(_keyEvents) ?? '[]';
-    final events = List<Map<String, dynamic>>.from(jsonDecode(eventsJson));
+    List<Map<String, dynamic>> events;
+    try {
+      events = List<Map<String, dynamic>>.from(jsonDecode(eventsJson));
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur jsonDecode dans _saveEvent: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+      events = [];
+    }
 
     events.add(event);
 
@@ -184,7 +192,14 @@ class AnalyticsService {
   Future<List<Map<String, dynamic>>> _getEvents() async {
     final prefs = await SharedPreferences.getInstance();
     final eventsJson = prefs.getString(_keyEvents) ?? '[]';
-    return List<Map<String, dynamic>>.from(jsonDecode(eventsJson));
+    try {
+      return List<Map<String, dynamic>>.from(jsonDecode(eventsJson));
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur jsonDecode dans _getEvents: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+      return [];
+    }
   }
 
   /// Générer un ID unique

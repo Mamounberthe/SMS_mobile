@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'config.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'services/api_client.dart';
@@ -25,6 +26,7 @@ import 'widgets/app_shell.dart';
 /// Point d'entrée de l'application (équivalent de public/index.php).
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.validate();
 
   final api = ApiClient();
   final offline = OfflineService();

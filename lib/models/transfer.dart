@@ -1,3 +1,6 @@
+/// Transfert lieu → lieu (retours inclus) — miroir de TransferResource.
+import '../utils/validation.dart';
+
 class TransferItem {
   final int id;
   final int productId;
@@ -54,9 +57,7 @@ class Transfer {
         toLocationId: json['to_location_id'] as int,
         toName: json['to_location'] is Map ? json['to_location']['name'] as String? : null,
         status: json['status'] as String,
-        isReturn: (json['is_return'] ?? false) as bool,
-        items: json['items'] is List
-            ? (json['items'] as List).cast<Map<String, dynamic>>().map(TransferItem.fromJson).toList()
-            : const [],
+        isReturn: parseBool(json['is_return'] ?? false),
+        items: safeCastMapList(json['items']).map(TransferItem.fromJson).toList(),
       );
 }

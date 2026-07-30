@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -43,6 +45,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   int _lastPage = 1;
   bool _showFilters = false;
   bool _isOffline = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -62,12 +66,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Future<void> _checkConnectivity() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    setState(() => _isOffline = connectivityResult == ConnectivityResult.none);
-    
-    // Écouter les changements de connectivité
-    Connectivity().onConnectivityChanged.listen((result) async {
-      setState(() => _isOffline = result == ConnectivityResult.none);
+    final result = await Connectivity().checkConnectivity();
+    setState(() => _isOffline = result.contains(ConnectivityResult.none));
+
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
+      if (!mounted) return;
+      setState(() => _isOffline = result.contains(ConnectivityResult.none));
       if (!_isOffline && _products.isEmpty) {
         _load(reset: true);
       }
@@ -76,6 +80,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _connectivitySub?.cancel();
     _searchCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -114,10 +120,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
           category: _categoryFilter,
           brand: _brandFilter,
         );
-        setState(() {
-          _products.addAll(result.items);
-          _lastPage = result.lastPage;
-        });
+        if (mounted) {
+          setState(() {
+            _products.addAll(result.items);
+            _lastPage = result.lastPage;
+          });
+        }
         
         // Mettre en cache les produits pour usage hors-ligne
         if (reset && result.items.isNotEmpty) {
@@ -297,8 +305,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           ),
                           onChanged: (v) {
-                            _categoryFilter = v.trim().isEmpty ? null : v.trim();
-                            _load(reset: true);
+                            _debounce?.cancel();
+                            _debounce = Timer(const Duration(milliseconds: 400), () {
+                              _categoryFilter = v.trim().isEmpty ? null : v.trim();
+                              _load(reset: true);
+                            });
                           },
                         ),
                         const SizedBox(height: Insets.sm),
@@ -310,8 +321,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           ),
                           onChanged: (v) {
-                            _brandFilter = v.trim().isEmpty ? null : v.trim();
-                            _load(reset: true);
+                            _debounce?.cancel();
+                            _debounce = Timer(const Duration(milliseconds: 400), () {
+                              _brandFilter = v.trim().isEmpty ? null : v.trim();
+                              _load(reset: true);
+                            });
                           },
                         ),
                       ],

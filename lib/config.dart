@@ -1,17 +1,24 @@
+import 'package:flutter/foundation.dart';
+
 /// Configuration globale de l'application.
 class AppConfig {
   /// URL de base de l'API RSMS.
-  ///
-  /// Par défaut : API locale (dev ET release local). Pour la vraie production,
-  /// surcharger au build :
-  ///   flutter build web --release --dart-define=API_BASE_URL=https://mon-api.com/api/v1
-  ///
-  /// Selon la cible :
-  /// - Web (Chrome)      : http://127.0.0.1:8000
-  /// - Émulateur Android : http://10.0.2.2:8000 (10.0.2.2 = localhost de la machine hôte)
-  /// - Appareil physique : http://[IP-de-ton-PC]:8000
+  /// En release, OBLIGATOIRE de passer --dart-define=API_BASE_URL=https://...
+  /// (HTTPS requis pour ne pas exposer les credentials en clair).
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api/v1',
+    defaultValue: kDebugMode
+        ? 'http://10.0.2.2:8000/api/v1' // émulateur Android seulement
+        : 'https://api.rsms.app/api/v1', // fallback HTTPS en release
   );
+
+  /// Vérifie au démarrage que l'URL est valide.
+  static void validate() {
+    if (!apiBaseUrl.startsWith('https://') && !apiBaseUrl.startsWith('http://')) {
+      throw StateError(
+        'API_BASE_URL invalide ($apiBaseUrl). '
+        'Passez --dart-define=API_BASE_URL=https://votre-api.com/api/v1',
+      );
+    }
+  }
 }

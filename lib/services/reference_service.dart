@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart' hide Category;
+
 import '../models/category.dart';
 import '../models/location.dart';
 import '../models/supplier.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 import 'offline_service.dart';
 
@@ -22,12 +25,15 @@ class ReferenceService {
         'type': type,
         'active_only': true,
       });
-      final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+      final data = safeCastMapList(res.data['data']);
       final list = data.map(Location.fromJson).toList();
       // Mettre à jour le cache (liste complète, sans filtre type).
       if (type == null) await offline.cacheLocations(list);
       return list;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur locations API: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
       // Hors-ligne : retomber sur le cache (filtrage local par type).
       final cached = await offline.getCachedLocations();
       if (type == null) return cached;
@@ -43,11 +49,14 @@ class ReferenceService {
   Future<List<Supplier>> suppliers() async {
     try {
       final res = await api.dio.get('/suppliers');
-      final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+      final data = safeCastMapList(res.data['data']);
       final list = data.map(Supplier.fromJson).toList();
       await offline.cacheSuppliers(list);
       return list;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur suppliers API: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
       return offline.getCachedSuppliers();
     }
   }
@@ -55,11 +64,14 @@ class ReferenceService {
   Future<List<Category>> categories() async {
     try {
       final res = await api.dio.get('/categories');
-      final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+      final data = safeCastMapList(res.data['data']);
       final list = data.map(Category.fromJson).toList();
       await offline.cacheCategories(list);
       return list;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur categories API: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
       return offline.getCachedCategories();
     }
   }

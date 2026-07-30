@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Padding qui centre le contenu d'un formulaire (largeur lisible) sur grand écran,
-/// via des marges horizontales calculées. À utiliser comme `padding:` d'un ListView
-/// dans un écran poussé (plein écran).
+/// Padding pour les formulaires. Retourne un padding fixe sécurisé.
+/// Pour centrer+limiter la largeur, utiliser le widget [FormWrap] à la place.
 EdgeInsets formPadding(BuildContext context, {double maxWidth = 620}) {
-  final w = MediaQuery.of(context).size.width;
-  final h = w > maxWidth + 2 * Insets.lg ? (w - maxWidth) / 2 : Insets.lg;
-  return EdgeInsets.symmetric(horizontal: h, vertical: Insets.lg);
+  return const EdgeInsets.symmetric(horizontal: Insets.lg, vertical: Insets.lg);
 }
 
 /// Centre et limite la largeur d'un contenu (formulaires) sur grand écran.
@@ -34,17 +31,31 @@ class ResponsiveWrap extends StatelessWidget {
   final List<Widget> children;
   final double minItemWidth;
   final double spacing;
+  final bool forceSingleColumn;
   const ResponsiveWrap({
     super.key,
     required this.children,
-    this.minItemWidth = 340,
+    this.minItemWidth = 280,
     this.spacing = Insets.md,
+    this.forceSingleColumn = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
+        final w = MediaQuery.of(context).size.width;
+        // Force 1 colonne sur mobile (< 600px) ou si demandé
+        if (forceSingleColumn || w < 600) {
+          return Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i < children.length - 1) SizedBox(height: spacing),
+              ],
+            ],
+          );
+        }
         final cols = ((c.maxWidth + spacing) / (minItemWidth + spacing)).floor().clamp(1, 4);
         final itemW = cols == 1 ? c.maxWidth : (c.maxWidth - (cols - 1) * spacing) / cols;
         return Wrap(

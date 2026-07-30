@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../models/order.dart';
 import '../services/api_client.dart';
-import '../services/connectivity_service.dart';
 import '../services/offline_service.dart';
 import '../services/order_service.dart';
 import '../services/export_service.dart';
@@ -69,10 +68,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
     });
     try {
       final result = await _service.list(page: _page, status: _statusFilter);
-      setState(() {
-        _orders.addAll(result.items);
-        _lastPage = result.lastPage;
-      });
+      if (mounted) {
+        setState(() {
+          _orders.addAll(result.items);
+          _lastPage = result.lastPage;
+        });
+      }
       // Mettre à jour le cache pour usage hors-ligne
       if (_page == 1) {
         final offline = context.read<OfflineService>();

@@ -2,6 +2,8 @@
 ///
 /// `T` est le type des éléments. On passe une fonction qui sait transformer
 /// un élément JSON en objet Dart (ex. Product.fromJson).
+import '../utils/validation.dart';
+
 class Paginated<T> {
   final List<T> items;
   final int currentPage;
@@ -21,7 +23,7 @@ class Paginated<T> {
     Map<String, dynamic> json,
     T Function(Map<String, dynamic>) itemFromJson,
   ) {
-    final data = (json['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(json['data']);
     final meta = (json['meta'] ?? const {}) as Map<String, dynamic>;
     return Paginated<T>(
       items: data.map(itemFromJson).toList(),

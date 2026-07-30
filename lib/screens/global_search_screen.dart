@@ -13,7 +13,8 @@ import '../theme.dart';
 import '../utils/format.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/skeleton.dart';
+import 'product_detail_screen.dart';
+import 'order_detail_screen.dart';
 
 /// Résultat de recherche global
 enum SearchResultType { product, order, user }
@@ -109,8 +110,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       final role = context.read<AuthProvider>().user?.role;
       if (role == 'admin' || role == 'director' || role == 'store_manager') {
         try {
-          final orders = await orderService.list(page: 1);
-          for (final o in orders.items) {
+          final ordersRes = await orderService.list(page: 1);
+          final orders = ordersRes.items.where((o) =>
+            o.reference.toLowerCase().contains(query.toLowerCase())
+          ).toList();
+          for (final o in orders) {
             results.add(SearchResult(
               type: SearchResultType.order,
               title: o.reference,
@@ -125,8 +129,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       // Recherche utilisateurs (si admin)
       if (role == 'admin' || role == 'director') {
         try {
-          final users = await userService.list(page: 1);
-          for (final u in users.items) {
+          final usersRes = await userService.list(page: 1);
+          final users = usersRes.items.where((u) =>
+            u.name.toLowerCase().contains(query.toLowerCase())
+          ).toList();
+          for (final u in users) {
             results.add(SearchResult(
               type: SearchResultType.user,
               title: u.name,
@@ -155,19 +162,25 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   void _navigateToResult(SearchResult result) {
-    // Navigation basée sur le type de résultat
+    Navigator.of(context).pop(); // fermer la recherche
     switch (result.type) {
       case SearchResultType.product:
-        // Naviguer vers détail produit
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ProductDetailScreen(product: result.data as Product)),
+        );
         break;
       case SearchResultType.order:
-        // Naviguer vers détail commande
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: (result.data as Order).id)),
+        );
         break;
       case SearchResultType.user:
-        // Naviguer vers détail utilisateur
+        // Pas d'écran détail user, on peut afficher un SnackBar ou naviguer vers admin
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Utilisateur : ${(result.data as User).name}')),
+        );
         break;
     }
-    Navigator.of(context).pop(result.data);
   }
 
   @override
@@ -216,9 +229,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                       : ListView.separated(
                           padding: const EdgeInsets.all(Insets.lg),
                           itemCount: _results.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: Insets.sm),
-                          itemBuilder: (context, index) {
-                            final result = _results[index];
+                          separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
+                          itemBuilder: (context, i) {
+                            final result = _results[i];
                             return _buildResultCard(result, s);
                           },
                         ),

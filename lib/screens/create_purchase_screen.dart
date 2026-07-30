@@ -56,14 +56,17 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
   bool get _isOffline => _connectivity.isOffline;
 
   Future<void> _load() async {
+    setState(() => _loading = true);
     try {
       // Offline-aware : retombe sur le cache si l'API est injoignable.
       final suppliers = await _ref.suppliers();
       final wh = await _ref.warehouse();
-      setState(() {
-        _suppliers = suppliers;
-        _warehouse = wh;
-      });
+      if (mounted) {
+        setState(() {
+          _suppliers = suppliers;
+          _warehouse = wh;
+        });
+      }
     } catch (_) {
       // liste vide en cas d'erreur
     } finally {
@@ -75,7 +78,7 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
     final p = await Navigator.of(context)
         .push<Product>(MaterialPageRoute(builder: (_) => const ProductPickerScreen()));
     if (p == null) return;
-    setState(() => _lines.add(_Line(p, 1)));
+    if (mounted) setState(() => _lines.add(_Line(p, 1)));
   }
 
   Future<void> _pickExpiry(_Line line) async {
@@ -86,7 +89,9 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
       lastDate: DateTime(now.year + 10),
       initialDate: line.expiry ?? DateTime(now.year + 1),
     );
-    if (d != null) setState(() => line.expiry = d);
+    if (d != null) {
+      if (mounted) setState(() => line.expiry = d);
+    }
   }
 
   Future<void> _submit() async {
@@ -179,9 +184,10 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
       appBar: AppBar(title: const Text('Nouvel achat')),
       body: _loading
           ? const SkeletonList()
-          : ListView(
-              padding: formPadding(context),
-              children: [
+          : FormWrap(
+              child: ListView(
+                padding: formPadding(context),
+                children: [
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +242,8 @@ class _CreatePurchaseScreenState extends State<CreatePurchaseScreen> {
                 const SizedBox(height: Insets.xxl),
               ],
             ),
+          ),
+        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

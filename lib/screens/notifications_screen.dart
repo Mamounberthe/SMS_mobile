@@ -9,6 +9,7 @@ import '../widgets/skeleton.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/page_header.dart';
+import '../widgets/responsive.dart';
 
 /// Notifications — corps hébergé dans AppShell (pas de Scaffold propre).
 class NotificationsScreen extends StatefulWidget {
@@ -38,11 +39,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
     try {
       final res = await _service.list();
-      setState(() => _items = res.items);
+      if (mounted) setState(() => _items = res.items);
     } catch (e) {
-      setState(() => _error = ApiClient.errorMessage(e));
+      if (mounted) setState(() => _error = ApiClient.errorMessage(e));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -102,58 +103,78 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final s = AppSurface.of(context);
+
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(Insets.xl, Insets.lg, Insets.xl, Insets.xl),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
-        itemBuilder: (context, i) {
-          final n = _items[i];
-          final color = _colorFor(n.type);
-          return AppCard(
-            padding: const EdgeInsets.all(Insets.md),
-            onTap: n.read
-                ? null
-                : () async {
-                    await _service.markRead(n.id);
-                    _load();
-                  },
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: n.read ? 0.08 : 0.15),
-                    borderRadius: BorderRadius.circular(Radii.sm),
-                  ),
-                  child: Icon(_iconFor(n.type), color: n.read ? s.muted : color, size: 20),
-                ),
-                const SizedBox(width: Insets.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(n.title,
-                          style: TextStyle(
-                              fontWeight: n.read ? FontWeight.w500 : FontWeight.w700, fontSize: 14)),
-                      if (n.body != null) ...[
-                        const SizedBox(height: 2),
-                        Text(n.body!, style: TextStyle(color: s.muted, fontSize: 13)),
-                      ],
-                    ],
-                  ),
-                ),
-                if (!n.read)
-                  const Padding(
-                    padding: EdgeInsets.only(left: Insets.sm),
-                    child: Icon(Icons.circle, size: 9, color: Colors.blue),
-                  ),
-              ],
-            ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 600;
+          if (!isWide) {
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(Insets.xl, Insets.lg, Insets.xl, Insets.xl),
+              itemCount: _items.length,
+              separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
+              itemBuilder: (context, i) => _buildNotificationCard(_items[i], s),
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.all(Insets.lg),
+            children: [
+              ResponsiveWrap(
+                children: _items.map((n) => _buildNotificationCard(n, s)).toList(),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(AppNotification n, AppSurface s) {
+    final color = _colorFor(n.type);
+    return SizedBox(
+      width: double.infinity,
+      child: AppCard(
+        padding: const EdgeInsets.all(Insets.md),
+        onTap: n.read
+            ? null
+            : () async {
+                await _service.markRead(n.id);
+                _load();
+              },
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: n.read ? 0.08 : 0.15),
+                borderRadius: BorderRadius.circular(Radii.sm),
+              ),
+              child: Icon(_iconFor(n.type), color: n.read ? s.muted : color, size: 20),
+            ),
+            const SizedBox(width: Insets.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(n.title,
+                      style: TextStyle(
+                          fontWeight: n.read ? FontWeight.w500 : FontWeight.w700, fontSize: 14)),
+                  if (n.body != null) ...[
+                    const SizedBox(height: 2),
+                    Text(n.body!, style: TextStyle(color: s.muted, fontSize: 13)),
+                  ],
+                ],
+              ),
+            ),
+            if (!n.read)
+              const Padding(
+                padding: EdgeInsets.only(left: Insets.sm),
+                child: Icon(Icons.circle, size: 9, color: Colors.blue),
+              ),
+          ],
+        ),
       ),
     );
   }

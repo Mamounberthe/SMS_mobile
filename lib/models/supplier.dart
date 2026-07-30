@@ -1,4 +1,6 @@
 /// Fournisseur — miroir de SupplierResource.
+import '../utils/validation.dart';
+
 class Supplier {
   final int id;
   final String name;
@@ -25,6 +27,6 @@ class Supplier {
         phone: json['phone'] as String?,
         email: json['email'] as String?,
         address: json['address'] as String?,
-        isActive: (json['is_active'] ?? true) as bool,
+        isActive: parseBool(json['is_active'] ?? true),
       );
 }

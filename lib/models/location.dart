@@ -1,4 +1,6 @@
 /// Lieu (dépôt ou boutique) — miroir de LocationResource.
+import '../utils/validation.dart';
+
 class Location {
   final int id;
   final String name;
@@ -25,7 +27,7 @@ class Location {
         type: json['type'] as String,
         address: json['address'] as String?,
         phone: json['phone'] as String?,
-        isActive: (json['is_active'] ?? true) as bool,
+        isActive: parseBool(json['is_active'] ?? true),
       );
 
   bool get isWarehouse => type == 'warehouse';

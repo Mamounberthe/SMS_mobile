@@ -1,4 +1,5 @@
 import '../models/category.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// CRUD des catégories de produits.
@@ -8,7 +9,7 @@ class CategoryService {
 
   Future<List<Category>> list() async {
     final res = await api.dio.get('/categories');
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(Category.fromJson).toList();
   }
 

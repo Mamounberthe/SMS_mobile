@@ -1,4 +1,5 @@
 import '../models/order_template.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// Service pour gérer les templates de commandes (paniers fréquents)
@@ -9,7 +10,7 @@ class TemplateService {
   /// Récupérer tous les templates
   Future<List<OrderTemplate>> list() async {
     final res = await api.dio.get('/order-templates');
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(OrderTemplate.fromJson).toList();
   }
 

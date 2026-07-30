@@ -132,7 +132,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 100,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   show: true,
@@ -162,7 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 0,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_monday'] ?? 50) as double,
+                        toY: (data['stock_monday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -173,7 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 1,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_tuesday'] ?? 60) as double,
+                        toY: (data['stock_tuesday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -184,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 2,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_wednesday'] ?? 55) as double,
+                        toY: (data['stock_wednesday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -195,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 3,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_thursday'] ?? 70) as double,
+                        toY: (data['stock_thursday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -206,7 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 4,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_friday'] ?? 65) as double,
+                        toY: (data['stock_friday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -217,7 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 5,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_saturday'] ?? 80) as double,
+                        toY: (data['stock_saturday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -228,7 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     x: 6,
                     barRods: [
                       BarChartRodData(
-                        toY: (data['stock_sunday'] ?? 75) as double,
+                        toY: (data['stock_sunday'] ?? 0) as double,
                         color: AppColors.brand,
                         width: 16,
                         borderRadius: BorderRadius.circular(4),
@@ -236,11 +235,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ],
+                maxY: _calculateMaxY(data),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  double _calculateMaxY(Map<String, dynamic> data) {
+    final values = [
+      (data['stock_monday'] ?? 0) as double,
+      (data['stock_tuesday'] ?? 0) as double,
+      (data['stock_wednesday'] ?? 0) as double,
+      (data['stock_thursday'] ?? 0) as double,
+      (data['stock_friday'] ?? 0) as double,
+      (data['stock_saturday'] ?? 0) as double,
+      (data['stock_sunday'] ?? 0) as double,
+    ];
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    return (maxValue * 1.2).clamp(1, double.infinity);
   }
 }

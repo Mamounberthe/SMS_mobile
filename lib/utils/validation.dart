@@ -1,5 +1,22 @@
 import 'package:flutter/material.dart';
 
+/// Helper pour convertir les valeurs en bool avec tolérance 0/1
+bool parseBool(dynamic value) {
+  if (value is bool) return value;
+  if (value is int) return value != 0;
+  if (value is String) {
+    final lower = value.toLowerCase();
+    return lower == 'true' || lower == '1' || lower == 'yes';
+  }
+  return false;
+}
+
+/// Helper pour convertir une List en List<Map<String,dynamic>> de manière sûre
+List<Map<String, dynamic>> safeCastMapList(dynamic data) {
+  if (data is! List) return [];
+  return data.whereType<Map<String, dynamic>>().toList();
+}
+
 /// Résultat de validation d'un champ
 class ValidationResult {
   final bool isValid;

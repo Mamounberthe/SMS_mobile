@@ -38,9 +38,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     });
     try {
       final items = await _service.list();
-      setState(() => _items = items);
+      if (mounted) setState(() => _items = items);
     } catch (e) {
-      setState(() => _error = ApiClient.errorMessage(e));
+      if (mounted) setState(() => _error = ApiClient.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -49,42 +49,71 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> _openForm({Category? category}) async {
     final nameCtrl = TextEditingController(text: category?.name ?? '');
     final descCtrl = TextEditingController(text: category?.description ?? '');
+    String? validationError;
+    
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(category == null ? 'Nouvelle catégorie' : 'Modifier la catégorie'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Nom *')),
-            const SizedBox(height: Insets.md),
-            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description'), maxLines: 2),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
-        ],
-      ),
-    );
-    if (ok != true || nameCtrl.text.trim().isEmpty) return;
-    final data = {
-      'name': nameCtrl.text.trim(),
-      'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-    };
-    try {
-      if (category == null) {
-        await _service.create(data);
-      } else {
-        await _service.update(category.id, data);
-      }
-      _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: Text(category == null ? 'Nouvelle catégorie' : 'Modifier la catégorie'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Nom *',
+                    errorText: validationError,
+                  ),
+                  enabled: !saving,
+                ),
+                const SizedBox(height: Insets.md),
+                TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description'), maxLines: 2, enabled: !saving),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: saving ? null : () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  if (nameCtrl.text.trim().isEmpty) {
+                    setLocal(() => validationError = 'Le nom est requis');
+                    return;
+                  }
+                  setLocal(() => saving = true);
+                  try {
+                    final data = {
+                      'name': nameCtrl.text.trim(),
+                      'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                    };
+                    if (category == null) {
+                      await _service.create(data);
+                    } else {
+                      await _service.update(category.id, data);
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    setLocal(() => saving = false);
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Enregistrer'),
+              ),
+            ],
+          ),
         );
-      }
+      },
+    );
+    if (ok == true) {
+      _load();
     }
   }
 

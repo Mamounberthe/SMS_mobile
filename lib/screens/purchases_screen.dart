@@ -44,11 +44,13 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     });
     try {
       final res = await _service.list();
-      setState(() {
-        _items
-          ..clear()
-          ..addAll(res.items);
-      });
+      if (mounted) {
+        setState(() {
+          _items
+            ..clear()
+            ..addAll(res.items);
+        });
+      }
       // Mettre à jour le cache pour usage hors-ligne
       final offline = context.read<OfflineService>();
       await offline.cachePurchases(res.items);

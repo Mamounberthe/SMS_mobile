@@ -1,3 +1,5 @@
+import '../utils/validation.dart';
+
 class InventoryItem {
   final int id;
   final int productId;
@@ -28,7 +30,7 @@ class InventoryItem {
       );
 }
 
-/// Inventaire — miroir de InventoryResource.
+/// Inventaire (stocktake) — miroir de InventoryResource.
 class Inventory {
   final int id;
   final String reference;
@@ -55,8 +57,6 @@ class Inventory {
         locationName: json['location'] is Map ? json['location']['name'] as String? : null,
         type: json['type'] as String,
         status: json['status'] as String,
-        items: json['items'] is List
-            ? (json['items'] as List).cast<Map<String, dynamic>>().map(InventoryItem.fromJson).toList()
-            : const [],
+        items: safeCastMapList(json['items']).map(InventoryItem.fromJson).toList(),
       );
 }

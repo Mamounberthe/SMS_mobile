@@ -33,13 +33,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     try {
       final stats = await _analyticsService.getSessionStats();
       final events = await _analyticsService.getEvents();
-      setState(() {
-        _sessionStats = stats;
-        _events = events;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _sessionStats = stats;
+          _events = events;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -111,13 +113,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   Widget _buildStatsGrid(AppSurface s) {
     final stats = _sessionStats!;
+    final w = MediaQuery.of(context).size.width;
+    final crossAxisCount = w >= 600 ? 2 : 1;
+    
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: Insets.lg,
       crossAxisSpacing: Insets.lg,
-      childAspectRatio: 1.3,
+      childAspectRatio: w >= 600 ? 1.3 : 2.5,
       children: [
         _buildStatCard('Durée de session', '${stats['session_duration']}s', Icons.timer, Colors.blue, s),
         _buildStatCard('Vues d\'écran', '${stats['screen_views']}', Icons.visibility, Colors.green, s),

@@ -1,4 +1,5 @@
 import '../models/location.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// CRUD des lieux (dépôt & boutiques) — réservé admin.
@@ -8,7 +9,7 @@ class LocationService {
 
   Future<List<Location>> list() async {
     final res = await api.dio.get('/locations');
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(Location.fromJson).toList();
   }
 

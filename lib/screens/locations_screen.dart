@@ -38,9 +38,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
     });
     try {
       final items = await _service.list();
-      setState(() => _items = items);
+      if (mounted) setState(() => _items = items);
     } catch (e) {
-      setState(() => _error = ApiClient.errorMessage(e));
+      if (mounted) setState(() => _error = ApiClient.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -53,72 +53,115 @@ class _LocationsScreenState extends State<LocationsScreen> {
     final phone = TextEditingController(text: location?.phone ?? '');
     String type = location?.type ?? 'store';
     bool active = location?.isActive ?? true;
+    String? nameError;
+    String? codeError;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(location == null ? 'Nouveau lieu' : 'Modifier le lieu'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Nom *')),
-                const SizedBox(height: Insets.sm),
-                TextField(controller: code, decoration: const InputDecoration(labelText: 'Code *')),
-                const SizedBox(height: Insets.sm),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Type *'),
-                  items: const [
-                    DropdownMenuItem(value: 'store', child: Text('Boutique')),
-                    DropdownMenuItem(value: 'warehouse', child: Text('Dépôt central')),
-                  ],
-                  onChanged: (v) => setLocal(() => type = v ?? type),
-                ),
-                const SizedBox(height: Insets.sm),
-                TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse')),
-                const SizedBox(height: Insets.sm),
-                TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone'), keyboardType: TextInputType.phone),
-                SwitchListTile(
-                  value: active,
-                  onChanged: (v) => setLocal(() => active = v),
-                  title: const Text('Lieu actif'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: Text(location == null ? 'Nouveau lieu' : 'Modifier le lieu'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Nom *',
+                      errorText: nameError,
+                    ),
+                    enabled: !saving,
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  TextField(
+                    controller: code,
+                    decoration: InputDecoration(
+                      labelText: 'Code *',
+                      errorText: codeError,
+                    ),
+                    enabled: !saving,
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  DropdownButtonFormField<String>(
+                    initialValue: type,
+                    decoration: const InputDecoration(labelText: 'Type *'),
+                    items: const [
+                      DropdownMenuItem(value: 'store', child: Text('Boutique')),
+                      DropdownMenuItem(value: 'warehouse', child: Text('Dépôt central')),
+                    ],
+                    onChanged: saving ? null : (v) => setLocal(() => type = v ?? type),
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse'), enabled: !saving),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone'), keyboardType: TextInputType.phone, enabled: !saving),
+                  SwitchListTile(
+                    value: active,
+                    onChanged: saving ? null : (v) => setLocal(() => active = v),
+                    title: const Text('Lieu actif'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
+            actions: [
+              TextButton(onPressed: saving ? null : () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  bool isValid = true;
+                  if (name.text.trim().isEmpty) {
+                    setLocal(() => nameError = 'Le nom est requis');
+                    isValid = false;
+                  } else {
+                    setLocal(() => nameError = null);
+                  }
+                  if (code.text.trim().isEmpty) {
+                    setLocal(() => codeError = 'Le code est requis');
+                    isValid = false;
+                  } else {
+                    setLocal(() => codeError = null);
+                  }
+                  if (!isValid) return;
+                  setLocal(() => saving = true);
+                  try {
+                    final data = <String, dynamic>{
+                      'name': name.text.trim(),
+                      'code': code.text.trim(),
+                      'type': type,
+                      'address': address.text.trim().isEmpty ? null : address.text.trim(),
+                      'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
+                      'is_active': active,
+                    };
+                    if (location == null) {
+                      await _service.create(data);
+                    } else {
+                      await _service.update(location.id, data);
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    setLocal(() => saving = false);
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Enregistrer'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || name.text.trim().isEmpty || code.text.trim().isEmpty) return;
-
-    final data = <String, dynamic>{
-      'name': name.text.trim(),
-      'code': code.text.trim(),
-      'type': type,
-      'address': address.text.trim().isEmpty ? null : address.text.trim(),
-      'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
-      'is_active': active,
-    };
-    try {
-      if (location == null) {
-        await _service.create(data);
-      } else {
-        await _service.update(location.id, data);
-      }
-      _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
         );
-      }
+      },
+    );
+    if (ok == true) {
+      _load();
     }
   }
 

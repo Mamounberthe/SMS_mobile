@@ -1,3 +1,5 @@
+import '../utils/validation.dart';
+
 class PurchaseItem {
   final int id;
   final int productId;
@@ -58,8 +60,6 @@ class Purchase {
         supplierName: json['supplier'] is Map ? json['supplier']['name'] as String? : null,
         status: json['status'] as String,
         totalAmount: (json['total_amount'] ?? 0) as int,
-        items: json['items'] is List
-            ? (json['items'] as List).cast<Map<String, dynamic>>().map(PurchaseItem.fromJson).toList()
-            : const [],
+        items: safeCastMapList(json['items']).map(PurchaseItem.fromJson).toList(),
       );
 }

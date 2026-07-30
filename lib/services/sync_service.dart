@@ -80,11 +80,19 @@ class SyncService extends ChangeNotifier {
     connectivity.addListener(_connectivityListener!);
 
     // Vérifier périodiquement les éléments en attente.
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      _updatePendingCount();
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) async {
+      await _updatePendingCount();
+      if (connectivity.isOnline && pendingCount > 0) {
+        await syncAll();
+      }
     });
 
-    _updatePendingCount();
+    // Premier sync au démarrage si online et file non vide
+    _updatePendingCount().then((_) {
+      if (connectivity.isOnline && pendingCount > 0) {
+        syncAll();
+      }
+    });
   }
 
   Future<void> _updatePendingCount() async {
@@ -98,7 +106,7 @@ class SyncService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
-        print('Erreur lors du comptage des éléments en attente: $e');
+        print('Erreur lors du comptage des éléments en attente: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
       }
     }
   }
@@ -130,14 +138,21 @@ class SyncService extends ChangeNotifier {
       // Synchroniser les commandes
       final pendingOrders = await offline.getPendingOrders();
       for (final order in pendingOrders) {
+        final retryCount = await offline.getRetryCount('pending_orders', order['id'] as int);
+        if (retryCount >= 3) {
+          await offline.moveToDeadLetter('order', order, 'Max retries exceeded');
+          await offline.removePendingOrder(order['id'] as int);
+          continue;
+        }
         try {
           await _syncOrder(order);
           await offline.removePendingOrder(order['id'] as int);
           syncedOrders++;
         } catch (e) {
           failedOrders++;
+          await offline.incrementRetryCount('pending_orders', order['id'] as int);
           if (kDebugMode) {
-            print('Erreur sync commande ${order['id']}: $e');
+            print('Erreur sync commande ${order['id']}: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
           }
         }
       }
@@ -145,14 +160,21 @@ class SyncService extends ChangeNotifier {
       // Synchroniser les achats
       final pendingPurchases = await offline.getPendingPurchases();
       for (final purchase in pendingPurchases) {
+        final retryCount = await offline.getRetryCount('pending_purchases', purchase['id'] as int);
+        if (retryCount >= 3) {
+          await offline.moveToDeadLetter('purchase', purchase, 'Max retries exceeded');
+          await offline.removePendingPurchase(purchase['id'] as int);
+          continue;
+        }
         try {
           await _syncPurchase(purchase);
           await offline.removePendingPurchase(purchase['id'] as int);
           syncedPurchases++;
         } catch (e) {
           failedPurchases++;
+          await offline.incrementRetryCount('pending_purchases', purchase['id'] as int);
           if (kDebugMode) {
-            print('Erreur sync achat ${purchase['id']}: $e');
+            print('Erreur sync achat ${purchase['id']}: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
           }
         }
       }
@@ -160,14 +182,21 @@ class SyncService extends ChangeNotifier {
       // Synchroniser les transferts
       final pendingTransfers = await offline.getPendingTransfers();
       for (final transfer in pendingTransfers) {
+        final retryCount = await offline.getRetryCount('pending_transfers', transfer['id'] as int);
+        if (retryCount >= 3) {
+          await offline.moveToDeadLetter('transfer', transfer, 'Max retries exceeded');
+          await offline.removePendingTransfer(transfer['id'] as int);
+          continue;
+        }
         try {
           await _syncTransfer(transfer);
           await offline.removePendingTransfer(transfer['id'] as int);
           syncedTransfers++;
         } catch (e) {
           failedTransfers++;
+          await offline.incrementRetryCount('pending_transfers', transfer['id'] as int);
           if (kDebugMode) {
-            print('Erreur sync transfert ${transfer['id']}: $e');
+            print('Erreur sync transfert ${transfer['id']}: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
           }
         }
       }
@@ -175,14 +204,21 @@ class SyncService extends ChangeNotifier {
       // Synchroniser les inventaires
       final pendingInventories = await offline.getPendingInventories();
       for (final inventory in pendingInventories) {
+        final retryCount = await offline.getRetryCount('pending_inventories', inventory['id'] as int);
+        if (retryCount >= 3) {
+          await offline.moveToDeadLetter('inventory', inventory, 'Max retries exceeded');
+          await offline.removePendingInventory(inventory['id'] as int);
+          continue;
+        }
         try {
           await _syncInventory(inventory);
           await offline.removePendingInventory(inventory['id'] as int);
           syncedInventories++;
         } catch (e) {
           failedInventories++;
+          await offline.incrementRetryCount('pending_inventories', inventory['id'] as int);
           if (kDebugMode) {
-            print('Erreur sync inventaire ${inventory['id']}: $e');
+            print('Erreur sync inventaire ${inventory['id']}: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
           }
         }
       }
@@ -259,34 +295,57 @@ class SyncService extends ChangeNotifier {
     try {
       final orders = await orderService.list();
       await offline.cacheOrders(orders.items);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur refresh orders: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+    }
     try {
       final purchases = await purchaseService.list();
       await offline.cachePurchases(purchases.items);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur refresh purchases: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+    }
     try {
       final transfers = await transferService.list();
       await offline.cacheTransfers(transfers.items);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur refresh transfers: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+    }
     try {
       final inventories = await inventoryService.list();
       await offline.cacheInventories(inventories.items);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur refresh inventories: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+    }
     try {
       final stocks = await reportService.stocks(page: 1);
       await offline.cacheStocks(stocks.items);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) {
+        print('Erreur refresh stocks: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
+      }
+    }
   }
 
   Future<void> _syncPurchase(Map<String, dynamic> purchase) async {
     final supplierId = purchase['supplier_id'] as int?;
+    final locationId = purchase['location_id'] as int?;
+    
+    if (supplierId == null || locationId == null) {
+      throw StateError('supplier_id and location_id are required for purchase sync');
+    }
+    
     final items = _parseItems(purchase['items'] as String);
-    // `location_id` est désormais persisté côté offline (v2). Avant la v2,
-    // il était absent → on retombe sur 1 (dépôt principal par défaut).
-    final locationId = (purchase['location_id'] as int?) ?? 1;
 
     await purchaseService.create(
-      supplierId: supplierId ?? 1,
+      supplierId: supplierId,
       locationId: locationId,
       items: items,
     );
@@ -330,7 +389,7 @@ class SyncService extends ChangeNotifier {
       return decoded.map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (e) {
       if (kDebugMode) {
-        print('Erreur parsing items: $e');
+        print('Erreur parsing items: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
       }
       return [];
     }
@@ -342,7 +401,7 @@ class SyncService extends ChangeNotifier {
       return decoded.map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (e) {
       if (kDebugMode) {
-        print('Erreur parsing inventory items: $e');
+        print('Erreur parsing inventory items: ${e is Exception ? e.toString() : 'Erreur inconnue'}');
       }
       return [];
     }

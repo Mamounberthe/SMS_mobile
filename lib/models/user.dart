@@ -1,4 +1,6 @@
 /// Modèle utilisateur — miroir Dart du UserResource de l'API.
+import '../utils/validation.dart';
+
 class User {
   final int id;
   final String name;
@@ -27,7 +29,7 @@ class User {
       role: json['role'] as String,
       roleLabel: (json['role_label'] ?? json['role']) as String,
       locationId: json['location_id'] as int?,
-      isActive: (json['is_active'] ?? true) as bool,
+      isActive: parseBool(json['is_active'] ?? true),
     );
   }
 }

@@ -1,6 +1,7 @@
 import '../models/movement.dart';
 import '../models/paginated.dart';
 import '../models/stock.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// Rapports + vues stock/mouvements.
@@ -11,26 +12,26 @@ class ReportService {
   /// GET /reports/stock-value → { data:[{location,total_quantity,total_value}], grand_total }
   Future<({List<Map<String, dynamic>> rows, int grandTotal})> stockValue() async {
     final res = await api.dio.get('/reports/stock-value');
-    final rows = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final rows = safeCastMapList(res.data['data']);
     return (rows: rows, grandTotal: (res.data['grand_total'] ?? 0) as int);
   }
 
   /// GET /reports/low-stock → { data:[{product,location,quantity,min_stock,status}] }
   Future<List<Map<String, dynamic>>> lowStock() async {
     final res = await api.dio.get('/reports/low-stock');
-    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+    return safeCastMapList(res.data['data']);
   }
 
   /// GET /reports/expiring → { data:[{product,location,lot_number,expiry_date,quantity,is_expired}] }
   Future<List<Map<String, dynamic>>> expiring({int days = 30}) async {
     final res = await api.dio.get('/reports/expiring', queryParameters: {'days': days});
-    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+    return safeCastMapList(res.data['data']);
   }
 
   /// GET /reports/movements → { data:[{type,count,net_delta}] }
   Future<List<Map<String, dynamic>>> movementsSummary() async {
     final res = await api.dio.get('/reports/movements');
-    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+    return safeCastMapList(res.data['data']);
   }
 
   /// GET /stocks — soldes par lieu (paginé).

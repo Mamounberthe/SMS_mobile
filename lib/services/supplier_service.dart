@@ -1,6 +1,7 @@
 import '../models/paginated.dart';
 import '../models/purchase.dart';
 import '../models/supplier.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// CRUD des fournisseurs + historique des achats.
@@ -10,7 +11,7 @@ class SupplierService {
 
   Future<List<Supplier>> list() async {
     final res = await api.dio.get('/suppliers');
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(Supplier.fromJson).toList();
   }
 

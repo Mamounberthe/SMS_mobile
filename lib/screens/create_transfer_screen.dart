@@ -60,7 +60,7 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
     try {
       // Offline-aware.
       final locs = await _ref.locations();
-      setState(() => _locations = locs);
+      if (mounted) setState(() => _locations = locs);
     } catch (e) {
       AppLogger.e('Erreur lors du chargement des lieux', error: e);
     } finally {
@@ -173,9 +173,10 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
       appBar: AppBar(title: const Text('Nouveau transfert')),
       body: _loading
           ? const SkeletonList()
-          : ListView(
-              padding: formPadding(context),
-              children: [
+          : FormWrap(
+              child: ListView(
+                padding: formPadding(context),
+                children: [
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,6 +233,8 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
                 ..._buildLines(s),
               ],
             ),
+          ),
+        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

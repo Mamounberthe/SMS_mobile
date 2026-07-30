@@ -97,9 +97,9 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
     setState(() => _loading = true);
     try {
       final res = await _service.list(search: _searchCtrl.text.trim(), perPage: 50);
-      setState(() => _products = _sortProducts(res.items));
+      if (mounted) setState(() => _products = _sortProducts(res.items));
     } catch (e) {
-      setState(() => _products = []);
+      if (mounted) setState(() => _products = []);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

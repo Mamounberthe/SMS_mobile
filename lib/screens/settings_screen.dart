@@ -6,11 +6,18 @@ import '../services/localization_service.dart';
 import '../theme.dart';
 import '../theme_controller.dart';
 import '../widgets/app_card.dart';
-import '../widgets/page_header.dart';
 
 /// Écran des paramètres de l'application
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _syncNotifEnabled = true;
+  bool _stockAlertEnabled = true;
 
   @override
   Widget build(BuildContext context) {
@@ -80,10 +87,14 @@ class SettingsScreen extends StatelessWidget {
                     leading: Icon(Icons.sync, color: AppColors.brand),
                     title: const Text('Notifications de synchronisation'),
                     trailing: Switch(
-                      value: true,
-                      onChanged: (value) {},
+                      value: _syncNotifEnabled,
+                      onChanged: (v) {
+                        setState(() => _syncNotifEnabled = v);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(v ? 'Notifications de synchronisation activées' : 'Notifications de synchronisation désactivées')),
+                        );
+                      },
                     ),
-                    onTap: () {},
                   ),
                 ),
                 const Divider(height: 1),
@@ -93,10 +104,14 @@ class SettingsScreen extends StatelessWidget {
                     leading: Icon(Icons.inventory_2, color: AppColors.brand),
                     title: const Text('Alertes de stock faible'),
                     trailing: Switch(
-                      value: true,
-                      onChanged: (value) {},
+                      value: _stockAlertEnabled,
+                      onChanged: (v) {
+                        setState(() => _stockAlertEnabled = v);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(v ? 'Alertes de stock faible activées' : 'Alertes de stock faible désactivées')),
+                        );
+                      },
                     ),
-                    onTap: () {},
                   ),
                 ),
               ],

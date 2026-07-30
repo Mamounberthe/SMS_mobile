@@ -41,9 +41,9 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     });
     try {
       final items = await _service.list();
-      setState(() => _items = items);
+      if (mounted) setState(() => _items = items);
     } catch (e) {
-      setState(() => _error = ApiClient.errorMessage(e));
+      if (mounted) setState(() => _error = ApiClient.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -55,53 +55,82 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     final phone = TextEditingController(text: supplier?.phone ?? '');
     final email = TextEditingController(text: supplier?.email ?? '');
     final address = TextEditingController(text: supplier?.address ?? '');
+    String? nameError;
+    
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(supplier == null ? 'Nouveau fournisseur' : 'Modifier le fournisseur'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Nom *')),
-              const SizedBox(height: Insets.sm),
-              TextField(controller: contact, decoration: const InputDecoration(labelText: 'Contact')),
-              const SizedBox(height: Insets.sm),
-              TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone'), keyboardType: TextInputType.phone),
-              const SizedBox(height: Insets.sm),
-              TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-              const SizedBox(height: Insets.sm),
-              TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse')),
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: Text(supplier == null ? 'Nouveau fournisseur' : 'Modifier le fournisseur'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Nom *',
+                      errorText: nameError,
+                    ),
+                    enabled: !saving,
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: contact, decoration: const InputDecoration(labelText: 'Contact'), enabled: !saving),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: phone, decoration: const InputDecoration(labelText: 'Téléphone'), keyboardType: TextInputType.phone, enabled: !saving),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress, enabled: !saving),
+                  const SizedBox(height: Insets.sm),
+                  TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse'), enabled: !saving),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: saving ? null : () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  if (name.text.trim().isEmpty) {
+                    setLocal(() => nameError = 'Le nom est requis');
+                    return;
+                  }
+                  setLocal(() => saving = true);
+                  try {
+                    final data = {
+                      'name': name.text.trim(),
+                      'contact_name': contact.text.trim().isEmpty ? null : contact.text.trim(),
+                      'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
+                      'email': email.text.trim().isEmpty ? null : email.text.trim(),
+                      'address': address.text.trim().isEmpty ? null : address.text.trim(),
+                    };
+                    if (supplier == null) {
+                      await _service.create(data);
+                    } else {
+                      await _service.update(supplier.id, data);
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    setLocal(() => saving = false);
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Enregistrer'),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
-        ],
-      ),
-    );
-    if (ok != true || name.text.trim().isEmpty) return;
-    final data = {
-      'name': name.text.trim(),
-      'contact_name': contact.text.trim().isEmpty ? null : contact.text.trim(),
-      'phone': phone.text.trim().isEmpty ? null : phone.text.trim(),
-      'email': email.text.trim().isEmpty ? null : email.text.trim(),
-      'address': address.text.trim().isEmpty ? null : address.text.trim(),
-    };
-    try {
-      if (supplier == null) {
-        await _service.create(data);
-      } else {
-        await _service.update(supplier.id, data);
-      }
-      _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
         );
-      }
+      },
+    );
+    if (ok == true) {
+      _load();
     }
   }
 

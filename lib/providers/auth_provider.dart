@@ -30,8 +30,8 @@ class AuthProvider extends ChangeNotifier {
     user = null;
     status = AuthStatus.unauthenticated;
     error = 'Session expirée. Veuillez vous reconnecter.';
-    // Nettoyage complet du cache local : on ne garde pas la session d'un user déconnecté.
-    _offline.clearAll();
+    // Ne purger QUE la session, PAS les opérations offline en attente
+    _offline.clearSession(); // supprime current_user + token uniquement
     notifyListeners();
   }
 
@@ -42,6 +42,9 @@ class AuthProvider extends ChangeNotifier {
 
   /// Au démarrage : y a-t-il un token valide déjà stocké ?
   Future<void> _bootstrap() async {
+    // Attendre que le état réseau réel soit résolu avant de décider
+    await Future.delayed(const Duration(milliseconds: 500));
+
     final token = await _api.readToken();
     if (token == null || token.isEmpty) {
       status = AuthStatus.unauthenticated;

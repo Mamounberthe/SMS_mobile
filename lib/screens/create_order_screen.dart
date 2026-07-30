@@ -70,20 +70,23 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   }
 
   Future<void> _loadStores(int? userLocationId) async {
+    setState(() => _loadingStores = true);
     try {
       // Offline-aware : retombe sur le cache si l'API est injoignable.
       final stores = await _ref.locations(type: 'store');
-      setState(() {
-        _stores = stores;
-        if (!_isGlobal && userLocationId != null) {
-          for (final s in stores) {
-            if (s.id == userLocationId) {
-              _store = s;
-              break;
+      if (mounted) {
+        setState(() {
+          _stores = stores;
+          if (!_isGlobal && userLocationId != null) {
+            for (final s in stores) {
+              if (s.id == userLocationId) {
+                _store = s;
+                break;
+              }
             }
           }
-        }
-      });
+        });
+      }
     } catch (_) {
       // on laisse la liste vide ; l'utilisateur verra le message
     } finally {
@@ -144,25 +147,27 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       final res = await _productService.list(perPage: 100);
       final productMap = {for (var p in res.items) p.id: p};
       
-      setState(() {
-        for (final item in template.items) {
-          final product = productMap[item.productId];
-          if (product != null) {
-            _Line? existing;
-            for (final l in _lines) {
-              if (l.product.id == product.id) {
-                existing = l;
-                break;
+      if (mounted) {
+        setState(() {
+          for (final item in template.items) {
+            final product = productMap[item.productId];
+            if (product != null) {
+              _Line? existing;
+              for (final l in _lines) {
+                if (l.product.id == product.id) {
+                  existing = l;
+                  break;
+                }
+              }
+              if (existing != null) {
+                existing.qty += item.quantity;
+              } else {
+                _lines.add(_Line(product, item.quantity));
               }
             }
-            if (existing != null) {
-              existing.qty += item.quantity;
-            } else {
-              _lines.add(_Line(product, item.quantity));
-            }
           }
-        }
-      });
+        });
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -283,6 +288,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     
     if (result == null) return;
     
+    if (!mounted) return;
+    
     setState(() {
       if (result is Product) {
         // Sélection simple (ancien comportement)
@@ -392,9 +399,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       appBar: AppBar(title: const Text('Nouvelle commande')),
       body: _loadingStores
           ? const SkeletonList()
-          : ListView(
-              padding: formPadding(context),
-              children: [
+          : FormWrap(
+              child: ListView(
+                padding: formPadding(context),
+                children: [
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,6 +543,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 const SizedBox(height: Insets.xxl),
               ],
             ),
+          ),
+        ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/api_client.dart';
 import '../services/sync_service.dart';
-import '../services/notification_service.dart';
-import '../services/analytics_service.dart';
 import '../theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
@@ -107,6 +104,7 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
   }
 
   Widget _buildConnectionCard(AppSurface s) {
+    final syncService = context.watch<SyncService>();
     return AppCard(
       child: Row(
         children: [
@@ -114,12 +112,12 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: (_syncService.isOnline ? Colors.green : Colors.red).withValues(alpha: 0.12),
+              color: (syncService.isOnline ? Colors.green : Colors.red).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(Radii.md),
             ),
             child: Icon(
-              _syncService.isOnline ? Icons.wifi : Icons.wifi_off,
-              color: _syncService.isOnline ? Colors.green : Colors.red,
+              syncService.isOnline ? Icons.wifi : Icons.wifi_off,
+              color: syncService.isOnline ? Colors.green : Colors.red,
             ),
           ),
           const SizedBox(width: Insets.md),
@@ -128,19 +126,19 @@ class _SyncStatusScreenState extends State<SyncStatusScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _syncService.isOnline ? 'Connecté' : 'Hors ligne',
+                  syncService.isOnline ? 'Connecté' : 'Hors ligne',
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 Text(
-                  _syncService.isOnline ? 'Synchronisation automatique activée' : 'Mode hors-ligne',
+                  syncService.isOnline ? 'Synchronisation automatique activée' : 'Mode hors-ligne',
                   style: TextStyle(color: s.muted, fontSize: 13),
                 ),
               ],
             ),
           ),
-          if (_syncService.lastSyncTime != null)
+          if (syncService.lastSyncTime != null)
             Text(
-              _formatDate(_syncService.lastSyncTime!),
+              _formatDate(syncService.lastSyncTime!),
               style: TextStyle(color: s.muted, fontSize: 12),
             ),
         ],

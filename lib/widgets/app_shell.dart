@@ -54,6 +54,15 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  // Indices nommés pour éviter la désynchronisation
+  static const int _idxTransfers = 3;
+  static const int _idxPurchases = 4;
+  static const int _idxInventories = 5;
+  static const int _idxNotifications = 6;
+  static const int _idxSync = 7;
+  static const int _idxAnalytics = 8;
+  static const int _idxSettings = 9;
+
   // Index de la destination active. Un ValueNotifier permet de rafraîchir le
   // contenu (hébergé dans un Navigator imbriqué) sans régénérer sa route racine.
   final ValueNotifier<int> _index = ValueNotifier<int>(0);
@@ -121,65 +130,93 @@ class _AppShellState extends State<AppShell> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Écrans principaux supplémentaires
-            for (final i in const [3, 4, 5])
-              ListTile(
-                leading: Icon(_destinations[i].icon, color: AppColors.brand),
-                title: Text(_destinations[i].label),
-                selected: _index.value == i,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _select(i);
-                },
-              ),
-            const Divider(height: 1),
-            // Nouvelles fonctionnalités
-            ListTile(
-              leading: const Icon(Icons.sync_rounded, color: AppColors.brand),
-              title: const Text('Synchronisation'),
-              selected: _index.value == 7,
-              onTap: () {
-                Navigator.pop(ctx);
-                _select(7);
-              },
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          String searchQuery = '';
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(Insets.md),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Rechercher...',
+                      prefixIcon: Icon(Icons.search),
+                      contentPadding: EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
+                    ),
+                    onChanged: (value) => setLocal(() => searchQuery = value.toLowerCase()),
+                  ),
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      // Écrans principaux supplémentaires
+                      for (final i in const [_idxTransfers, _idxPurchases, _idxInventories])
+                        if (_destinations[i].label.toLowerCase().contains(searchQuery))
+                          ListTile(
+                            leading: Icon(_destinations[i].icon, color: AppColors.brand),
+                            title: Text(_destinations[i].label),
+                            selected: _index.value == i,
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _select(i);
+                            },
+                          ),
+                      if (searchQuery.isEmpty) const Divider(height: 1),
+                      // Nouvelles fonctionnalités
+                      if ('synchronisation'.contains(searchQuery))
+                        ListTile(
+                          leading: const Icon(Icons.sync_rounded, color: AppColors.brand),
+                          title: const Text('Synchronisation'),
+                          selected: _index.value == _idxSync,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _select(_idxSync);
+                          },
+                        ),
+                      if ('statistiques'.contains(searchQuery))
+                        ListTile(
+                          leading: const Icon(Icons.bar_chart_rounded, color: AppColors.brand),
+                          title: const Text('Statistiques'),
+                          selected: _index.value == _idxAnalytics,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _select(_idxAnalytics);
+                          },
+                        ),
+                      if ('paramètres'.contains(searchQuery) || 'settings'.contains(searchQuery))
+                        ListTile(
+                          leading: const Icon(Icons.settings_rounded, color: AppColors.brand),
+                          title: const Text('Paramètres'),
+                          selected: _index.value == _idxSettings,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _select(_idxSettings);
+                          },
+                        ),
+                      if (searchQuery.isEmpty) const Divider(height: 1),
+                      // Admin
+                      if (isAdmin && ('administration'.contains(searchQuery) || 'admin'.contains(searchQuery)))
+                        ListTile(
+                          leading: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.brand),
+                          title: const Text('Administration'),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _openAdmin();
+                          },
+                        ),
+                      if (searchQuery.isEmpty) const Divider(height: 1),
+                      const _UserFooter(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.bar_chart_rounded, color: AppColors.brand),
-              title: const Text('Statistiques'),
-              selected: _index.value == 8,
-              onTap: () {
-                Navigator.pop(ctx);
-                _select(8);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_rounded, color: AppColors.brand),
-              title: const Text('Paramètres'),
-              selected: _index.value == 9,
-              onTap: () {
-                Navigator.pop(ctx);
-                _select(9);
-              },
-            ),
-            const Divider(height: 1),
-            // Admin
-            if (isAdmin)
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.brand),
-                title: const Text('Administration'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openAdmin();
-                },
-              ),
-            const Divider(height: 1),
-            const _UserFooter(),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -193,7 +230,6 @@ class _AppShellState extends State<AppShell> {
     // Bureau / tablette paysage → barre latérale complète (fixe) + contenu à droite.
     if (w >= _kSidebar) {
       return Scaffold(
-        floatingActionButton: QuickCreateFab(contentNavigator: _contentNav),
         body: Row(
           children: [
             _Sidebar(index: _index.value, onSelect: _select, onAdmin: isAdmin ? _openAdmin : null),
@@ -206,7 +242,6 @@ class _AppShellState extends State<AppShell> {
     // Tablette portrait → rail toujours visible (fixe) + contenu à droite.
     if (w >= _kRail) {
       return Scaffold(
-        floatingActionButton: QuickCreateFab(contentNavigator: _contentNav),
         body: Row(
           children: [
             _Rail(index: _index.value, onSelect: _select, onAdmin: isAdmin ? _openAdmin : null),
@@ -218,7 +253,7 @@ class _AppShellState extends State<AppShell> {
 
     // Téléphone → AppBar + barre de navigation du bas (pas de nav imbriqué :
     // les écrans s'ouvrent en plein écran, comportement attendu sur mobile).
-    const bottomDest = [0, 1, 2, 6]; // Accueil, Produits, Commandes, Alertes
+    const bottomDest = [0, 1, 2, _idxNotifications]; // Accueil, Produits, Commandes, Alertes
     final bottomIndex = bottomDest.indexOf(_index.value);
     return Scaffold(
       floatingActionButton: const QuickCreateFab(),
@@ -239,7 +274,7 @@ class _AppShellState extends State<AppShell> {
       ),
       body: _stack(),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: bottomIndex >= 0 ? bottomIndex : 4,
+        selectedIndex: bottomIndex >= 0 ? bottomIndex : _idxPurchases,
         onDestinationSelected: (i) {
           if (i < bottomDest.length) {
             _select(bottomDest[i]);

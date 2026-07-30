@@ -1,6 +1,7 @@
 import '../models/location.dart';
 import '../models/order.dart';
 import '../models/paginated.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 /// Appels liés aux commandes (boutique → dépôt) et à leur cycle d'états.
@@ -56,7 +57,7 @@ class OrderService {
   /// Boutiques disponibles (pour choisir la destination d'une commande).
   Future<List<Location>> stores() async {
     final res = await api.dio.get('/locations', queryParameters: {'type': 'store', 'active_only': true});
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     return data.map(Location.fromJson).toList();
   }
 }

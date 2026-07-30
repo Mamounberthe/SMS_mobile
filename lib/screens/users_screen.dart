@@ -52,12 +52,14 @@ class _UsersScreenState extends State<UsersScreen> {
     try {
       final res = await _service.list();
       final locs = await _ref.locations();
-      setState(() {
-        _items = res.items;
-        _locations = locs;
-      });
+      if (mounted) {
+        setState(() {
+          _items = res.items;
+          _locations = locs;
+        });
+      }
     } catch (e) {
-      setState(() => _error = ApiClient.errorMessage(e));
+      if (mounted) setState(() => _error = ApiClient.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -70,85 +72,140 @@ class _UsersScreenState extends State<UsersScreen> {
     String role = user?.role ?? 'store_manager';
     int? locationId = user?.locationId;
     bool active = user?.isActive ?? true;
+    String? nameError;
+    String? emailError;
+    String? passwordError;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: Text(user == null ? 'Nouvel utilisateur' : 'Modifier l\'utilisateur'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Nom *')),
-                const SizedBox(height: Insets.sm),
-                TextField(controller: email, decoration: const InputDecoration(labelText: 'Email *'), keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: Insets.sm),
-                TextField(
-                  controller: password,
-                  decoration: InputDecoration(
-                    labelText: user == null ? 'Mot de passe *' : 'Mot de passe (laisser vide = inchangé)',
-                    helperText: '8+ car., majuscule, minuscule, chiffre',
+      builder: (ctx) {
+        bool saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: Text(user == null ? 'Nouvel utilisateur' : 'Modifier l\'utilisateur'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Nom *',
+                      errorText: nameError,
+                    ),
+                    enabled: !saving,
                   ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: Insets.sm),
-                DropdownButtonFormField<String>(
-                  initialValue: role,
-                  decoration: const InputDecoration(labelText: 'Rôle *', prefixIcon: Icon(Icons.badge)),
-                  items: _roles.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
-                  onChanged: (v) => setLocal(() => role = v ?? role),
-                ),
-                const SizedBox(height: Insets.sm),
-                DropdownButtonFormField<int?>(
-                  initialValue: locationId,
-                  decoration: const InputDecoration(labelText: 'Lieu rattaché', prefixIcon: Icon(Icons.place)),
-                  items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('— (siège / global)')),
-                    ..._locations.map((l) => DropdownMenuItem(value: l.id, child: Text(l.name))),
-                  ],
-                  onChanged: (v) => setLocal(() => locationId = v),
-                ),
-                SwitchListTile(
-                  value: active,
-                  onChanged: (v) => setLocal(() => active = v),
-                  title: const Text('Compte actif'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
+                  const SizedBox(height: Insets.sm),
+                  TextField(
+                    controller: email,
+                    decoration: InputDecoration(
+                      labelText: 'Email *',
+                      errorText: emailError,
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    enabled: !saving,
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  TextField(
+                    controller: password,
+                    decoration: InputDecoration(
+                      labelText: user == null ? 'Mot de passe *' : 'Mot de passe (laisser vide = inchangé)',
+                      helperText: '8+ car., majuscule, minuscule, chiffre',
+                      errorText: passwordError,
+                    ),
+                    obscureText: true,
+                    enabled: !saving,
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  DropdownButtonFormField<String>(
+                    initialValue: role,
+                    decoration: const InputDecoration(labelText: 'Rôle *', prefixIcon: Icon(Icons.badge)),
+                    items: _roles.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                    onChanged: saving ? null : (v) => setLocal(() => role = v ?? role),
+                  ),
+                  const SizedBox(height: Insets.sm),
+                  DropdownButtonFormField<int?>(
+                    initialValue: locationId,
+                    decoration: const InputDecoration(labelText: 'Lieu rattaché', prefixIcon: Icon(Icons.place)),
+                    items: [
+                      const DropdownMenuItem<int?>(value: null, child: Text('— (siège / global)')),
+                      ..._locations.map((l) => DropdownMenuItem(value: l.id, child: Text(l.name))),
+                    ],
+                    onChanged: saving ? null : (v) => setLocal(() => locationId = v),
+                  ),
+                  SwitchListTile(
+                    value: active,
+                    onChanged: saving ? null : (v) => setLocal(() => active = v),
+                    title: const Text('Compte actif'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
+            actions: [
+              TextButton(onPressed: saving ? null : () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  bool isValid = true;
+                  if (name.text.trim().isEmpty) {
+                    setLocal(() => nameError = 'Le nom est requis');
+                    isValid = false;
+                  } else {
+                    setLocal(() => nameError = null);
+                  }
+                  if (email.text.trim().isEmpty) {
+                    setLocal(() => emailError = 'L\'email est requis');
+                    isValid = false;
+                  } else if (!email.text.trim().contains('@')) {
+                    setLocal(() => emailError = 'Email invalide');
+                    isValid = false;
+                  } else {
+                    setLocal(() => emailError = null);
+                  }
+                  if (user == null && password.text.isEmpty) {
+                    setLocal(() => passwordError = 'Le mot de passe est requis');
+                    isValid = false;
+                  } else {
+                    setLocal(() => passwordError = null);
+                  }
+                  if (!isValid) return;
+                  setLocal(() => saving = true);
+                  try {
+                    final data = <String, dynamic>{
+                      'name': name.text.trim(),
+                      'email': email.text.trim(),
+                      'role': role,
+                      'location_id': locationId,
+                      'is_active': active,
+                    };
+                    if (password.text.isNotEmpty) data['password'] = password.text;
+                    if (user == null) {
+                      await _service.create(data);
+                    } else {
+                      await _service.update(user.id, data);
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    setLocal(() => saving = false);
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Enregistrer'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enregistrer')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || name.text.trim().isEmpty || email.text.trim().isEmpty) return;
-
-    final data = <String, dynamic>{
-      'name': name.text.trim(),
-      'email': email.text.trim(),
-      'role': role,
-      'location_id': locationId,
-      'is_active': active,
-    };
-    if (password.text.isNotEmpty) data['password'] = password.text;
-
-    try {
-      if (user == null) {
-        await _service.create(data);
-      } else {
-        await _service.update(user.id, data);
-      }
-      _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
         );
-      }
+      },
+    );
+    if (ok == true) {
+      _load();
     }
   }
 

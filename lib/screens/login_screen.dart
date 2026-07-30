@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -13,8 +14,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _email = TextEditingController(text: 'admin@rsms.test');
-  final _password = TextEditingController(text: 'Password123');
+  final _email = TextEditingController(text: kDebugMode ? 'admin@rsms.test' : '');
+  final _password = TextEditingController(text: kDebugMode ? 'Password123' : '');
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
 

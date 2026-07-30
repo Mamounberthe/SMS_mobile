@@ -1,8 +1,7 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../models/notification.dart';
+import '../utils/validation.dart';
 import 'api_client.dart';
 
 class NotificationService {
@@ -17,7 +16,7 @@ class NotificationService {
     final res = await api.dio.get('/notifications', queryParameters: {
       if (unreadOnly) 'unread': 1,
     });
-    final data = (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final data = safeCastMapList(res.data['data']);
     final unread = (res.data['meta']?['unread_count'] ?? 0) as int;
     return (items: data.map(AppNotification.fromJson).toList(), unread: unread);
   }

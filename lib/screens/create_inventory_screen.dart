@@ -46,10 +46,11 @@ class _CreateInventoryScreenState extends State<CreateInventoryScreen> {
   bool get _isOffline => _connectivity.isOffline;
 
   Future<void> _load() async {
+    setState(() => _loading = true);
     try {
       // Offline-aware.
       final locs = await _ref.locations();
-      setState(() => _locations = locs);
+      if (mounted) setState(() => _locations = locs);
     } catch (_) {
       // liste vide en cas d'erreur
     } finally {
@@ -62,7 +63,7 @@ class _CreateInventoryScreenState extends State<CreateInventoryScreen> {
         .push<Product>(MaterialPageRoute(builder: (_) => const ProductPickerScreen()));
     if (p == null) return;
     if (_products.any((x) => x.id == p.id)) return;
-    setState(() => _products.add(p));
+    if (mounted) setState(() => _products.add(p));
   }
 
   Future<void> _submit() async {
@@ -148,9 +149,10 @@ class _CreateInventoryScreenState extends State<CreateInventoryScreen> {
       appBar: AppBar(title: const Text('Nouvel inventaire')),
       body: _loading
           ? const SkeletonList()
-          : ListView(
-              padding: formPadding(context),
-              children: [
+          : FormWrap(
+              child: ListView(
+                padding: formPadding(context),
+                children: [
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,6 +215,9 @@ class _CreateInventoryScreenState extends State<CreateInventoryScreen> {
                   ),
               ],
             ),
+          ),
+        ),
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Insets.md),
