@@ -32,7 +32,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   int _page = 1;
   int _lastPage = 1;
   String? _statusFilter;
-  final List<String> _availableStatuses = ['sent', 'received', 'cancelled'];
+  final List<String> _availableStatuses = ['pending', 'shipped', 'received', 'cancelled'];
   final _scrollController = ScrollController();
 
   @override
@@ -211,7 +211,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   String _statusLabel(String status) {
     return switch (status) {
-      'sent' => 'Envoyée',
+      'pending' => 'En attente',
+      'shipped' => 'Expédiée',
       'received' => 'Reçue',
       'cancelled' => 'Annulée',
       _ => status,

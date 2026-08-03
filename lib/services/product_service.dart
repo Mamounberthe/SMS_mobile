@@ -19,6 +19,8 @@ class ProductService {
     String? category,
     String? brand,
     int perPage = 30,
+    int? locationId, // Filtre par lieu
+    bool availableOnly = false, // Ne montrer que les produits avec stock > 0
   }) async {
     try {
       final res = await api.dio.get('/products', queryParameters: {
@@ -28,6 +30,8 @@ class ProductService {
         if (lowStockOnly) 'low_stock': 1,
         if (category != null && category.isNotEmpty) 'category': category,
         if (brand != null && brand.isNotEmpty) 'brand': brand,
+        if (locationId != null) 'location_id': locationId,
+        if (availableOnly) 'available_only': 1,
       });
       // Mettre en cache si page 1
       if (page == 1 && res.data['data'] != null) {

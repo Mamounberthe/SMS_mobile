@@ -7,6 +7,7 @@ import '../screens/create_inventory_screen.dart';
 import '../screens/create_order_screen.dart';
 import '../screens/create_purchase_screen.dart';
 import '../screens/create_transfer_screen.dart';
+import '../screens/storekeeper_transfer_screen.dart';
 import '../screens/product_detail_screen.dart';
 import '../screens/product_picker_screen.dart';
 import '../theme.dart';
@@ -38,7 +39,10 @@ class QuickActions extends StatelessWidget {
       if (isDepot)
         _QuickAction('Nouvel achat', Icons.local_shipping_rounded, Colors.purple,
             (_) => const CreatePurchaseScreen()),
-      if (isDepot || isStore)
+      if (role == 'storekeeper')
+        _QuickAction('Préparer transfert', Icons.local_shipping_rounded, Colors.teal,
+            (_) => const StorekeeperTransferScreen()),
+      if (isDepot || isStore && role != 'storekeeper')
         _QuickAction('Nouveau transfert', Icons.swap_horiz_rounded, Colors.teal,
             (_) => const CreateTransferScreen()),
       if (isDepot || isStore)

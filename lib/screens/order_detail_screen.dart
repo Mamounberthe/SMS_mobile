@@ -18,13 +18,15 @@ import '../widgets/skeleton.dart';
 /// Une action possible sur une commande (bouton).
 typedef OrderAction = ({String label, String endpoint, IconData icon, Color color, bool destructive});
 
-/// Actions disponibles selon le statut courant (cycle simplifié : Envoyée -> Reçue).
+/// Actions disponibles selon le statut courant (cycle simplifié : En attente -> Expédiée -> Reçue).
 List<OrderAction> _actionsFor(String status) {
-  const fulfill = (label: 'Livrer', endpoint: 'fulfill', icon: Icons.local_shipping, color: Colors.green, destructive: true);
+  const ship = (label: 'Expédier', endpoint: 'ship', icon: Icons.local_shipping, color: Colors.blue, destructive: false);
+  const receive = (label: 'Réceptionner', endpoint: 'receive', icon: Icons.check_circle, color: Colors.green, destructive: false);
   const cancel = (label: 'Annuler', endpoint: 'cancel', icon: Icons.cancel, color: Colors.red, destructive: true);
 
   return switch (status) {
-    'sent' => [fulfill, cancel],
+    'pending' => [ship, cancel],
+    'shipped' => [receive],
     _ => const [],
   };
 }
@@ -113,12 +115,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _runAction(OrderAction a) async {
-    // La livraison ouvre la feuille de réception (quantités ligne par ligne).
-    if (a.endpoint == 'fulfill') {
+    // L'expédition : confirmation simple
+    if (a.endpoint == 'ship') {
       final ok = await confirmAction(context,
-          title: 'Livrer la commande ?',
-          message: 'Vous allez confirmer la réception et livrer les articles.',
-          confirmLabel: 'Livrer',
+          title: 'Expédier la commande ?',
+          message: 'Vous allez marquer la commande comme expédiée.',
+          confirmLabel: 'Expédier',
+          danger: a.destructive);
+      if (!ok) return;
+      await _shipOrder();
+      return;
+    }
+
+    // La réception ouvre la feuille de réception (quantités ligne par ligne).
+    if (a.endpoint == 'receive') {
+      final ok = await confirmAction(context,
+          title: 'Réceptionner la commande ?',
+          message: 'Vous allez confirmer la réception et déplacer le stock.',
+          confirmLabel: 'Réceptionner',
           danger: a.destructive);
       if (!ok) return;
       await _receiveOrder();
@@ -155,6 +169,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  /// Expédition : marque la commande comme expédiée (sans déplacer le stock).
+  Future<void> _shipOrder() async {
+    setState(() => _busy = true);
+    try {
+      final updated = await _service.action(widget.orderId, 'ship');
+      setState(() => _order = updated);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Commande ${orderStatusInfo(updated.status).label.toLowerCase()}.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiClient.errorMessage(e)), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   /// Réception : ouvre une feuille où l'on ajuste les quantités réellement
   /// reçues par ligne, puis déplace le stock dépôt → boutique.
   Future<void> _receiveOrder() async {
@@ -171,7 +207,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     setState(() => _busy = true);
     try {
-      final updated = await _service.fulfill(widget.orderId, received: received);
+      final updated = await _service.receive(widget.orderId, received: received);
       setState(() => _order = updated);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

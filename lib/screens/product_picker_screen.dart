@@ -14,7 +14,14 @@ enum _SortOption { name, code, stock, price }
 /// Écran de sélection d'un produit (recherche avancée). Renvoie le Product choisi
 /// via Navigator.pop(product).
 class ProductPickerScreen extends StatefulWidget {
-  const ProductPickerScreen({super.key});
+  final int? sourceLocationId; // Filtre par lieu de stock
+  final bool availableOnly; // Ne montrer que les produits avec stock disponible
+  
+  const ProductPickerScreen({
+    super.key, 
+    this.sourceLocationId,
+    this.availableOnly = false,
+  });
 
   @override
   State<ProductPickerScreen> createState() => _ProductPickerScreenState();
@@ -25,6 +32,7 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
   final _searchCtrl = TextEditingController();
   List<Product> _products = [];
   List<Product> _recentProducts = [];
+  Map<int, int> _availableStocks = {}; // Stock disponible par produit
   Set<int> _favoriteIds = {};
   Set<int> _selectedIds = {};
   bool _loading = false;
@@ -97,7 +105,19 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
     setState(() => _loading = true);
     try {
       final res = await _service.list(search: _searchCtrl.text.trim(), perPage: 50);
-      if (mounted) setState(() => _products = _sortProducts(res.items));
+      var products = res.items;
+      
+      // Filtrer par stock disponible si demandé
+      if (widget.availableOnly && widget.sourceLocationId != null) {
+        await _loadAvailableStocks(products);
+        if (mounted) {
+          products = products.where((p) => 
+            (_availableStocks[p.id] ?? 0) > 0
+          ).toList();
+        }
+      }
+      
+      if (mounted) setState(() => _products = _sortProducts(products));
     } catch (e) {
       if (mounted) setState(() => _products = []);
       if (mounted) {
@@ -111,6 +131,38 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadAvailableStocks(List<Product> products) async {
+    if (widget.sourceLocationId == null) return;
+    
+    try {
+      final api = context.read<ApiClient>();
+      final Map<int, int> stocks = {};
+      
+      // Charger le stock pour chaque produit
+      for (final product in products) {
+        try {
+          final res = await api.dio.get('/stocks', queryParameters: {
+            'product_id': product.id,
+            'location_id': widget.sourceLocationId,
+          });
+          if (res.data['data'] != null && res.data['data'].isNotEmpty) {
+            stocks[product.id] = res.data['data'][0]['available'] ?? 0;
+          } else {
+            stocks[product.id] = 0;
+          }
+        } catch (_) {
+          stocks[product.id] = 0;
+        }
+      }
+      
+      if (mounted) {
+        setState(() => _availableStocks = stocks);
+      }
+    } catch (e) {
+      AppLogger.e('Erreur lors du chargement des stocks', error: e);
     }
   }
 
@@ -313,6 +365,10 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
   Widget _productTile(Product p, AppSurface s, {bool isRecent = false}) {
     final isFavorite = _favoriteIds.contains(p.id);
     final isSelected = _selectedIds.contains(p.id);
+    final availableStock = widget.availableOnly ? (_availableStocks[p.id] ?? 0) : (p.totalQuantity ?? 0);
+    final stockColor = availableStock == 0 
+        ? Colors.red 
+        : (availableStock <= (p.minStock ?? 0) ? Colors.orange : Colors.green);
     
     return ListTile(
       leading: _multiSelectMode
@@ -342,7 +398,22 @@ class _ProductPickerScreenState extends State<ProductPickerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(p.code, style: TextStyle(color: s.muted, fontSize: 13)),
-          if (p.totalQuantity != null)
+          if (widget.availableOnly)
+            Row(
+              children: [
+                Icon(Icons.inventory, size: 14, color: stockColor),
+                const SizedBox(width: 4),
+                Text(
+                  'Disponible: $availableStock',
+                  style: TextStyle(
+                    color: stockColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            )
+          else if (p.totalQuantity != null)
             Text('Stock: ${p.totalQuantity} ${p.unit}', style: TextStyle(color: s.muted, fontSize: 12)),
         ],
       ),

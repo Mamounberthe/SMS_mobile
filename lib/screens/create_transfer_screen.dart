@@ -19,7 +19,8 @@ import 'product_picker_screen.dart';
 class _Line {
   final Product product;
   int qty;
-  _Line(this.product, this.qty);
+  int availableStock;
+  _Line(this.product, this.qty, [this.availableStock = 0]);
 }
 
 class CreateTransferScreen extends StatefulWidget {
@@ -70,8 +71,17 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
 
   Future<void> _addProduct() async {
     final p = await Navigator.of(context)
-        .push<Product>(MaterialPageRoute(builder: (_) => const ProductPickerScreen()));
+        .push<Product>(MaterialPageRoute(
+          builder: (_) => ProductPickerScreen(
+            sourceLocationId: _from?.id,
+            availableOnly: true,
+          ),
+        ));
     if (p == null) return;
+    
+    // Récupérer le stock disponible pour ce produit dans le lieu source
+    final availableStock = await _getAvailableStock(p.id, _from?.id ?? 0);
+    
     setState(() {
       _Line? existing;
       for (final l in _lines) {
@@ -81,15 +91,70 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
         }
       }
       if (existing != null) {
-        existing.qty++;
+        // Incrémenter si le stock le permet
+        if (existing.qty < availableStock) {
+          existing.qty++;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Stock maximum atteint pour ${p.name}'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
       } else {
-        _lines.add(_Line(p, 1));
+        if (availableStock > 0) {
+          _lines.add(_Line(p, 1, availableStock));
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Stock indisponible pour ${p.name}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       }
     });
   }
 
+  Future<int> _getAvailableStock(int productId, int locationId) async {
+    try {
+      final api = context.read<ApiClient>();
+      final res = await api.dio.get('/stocks', queryParameters: {
+        'product_id': productId,
+        'location_id': locationId,
+      });
+      if (res.data['data'] != null && res.data['data'].isNotEmpty) {
+        return res.data['data'][0]['available'] ?? 0;
+      }
+    } catch (e) {
+      AppLogger.e('Erreur lors de la récupération du stock', error: e);
+    }
+    return 0;
+  }
+
   Future<void> _submit() async {
     if (_from == null || _to == null || _from!.id == _to!.id || _lines.isEmpty) return;
+    
+    // Validation des quantités par rapport au stock disponible
+    for (final line in _lines) {
+      if (line.qty > line.availableStock && line.availableStock > 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Stock insuffisant pour ${line.product.name} (max: ${line.availableStock})'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+    
     setState(() => _submitting = true);
     
     final items = _lines.map((l) => {'product_id': l.product.id, 'quantity': l.qty}).toList();
@@ -134,22 +199,26 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
               items: items,
               isReturn: _isReturn,
             );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Erreur de connexion. Transfert sauvegardé localement.'),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 3),
-              ),
-            );
-            Navigator.of(context).pop(true);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Erreur de connexion. Transfert sauvegardé localement.'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+              Navigator.of(context).pop(true);
+            }
             return;
           } catch (offlineError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Erreur: ${ApiClient.errorMessage(e)}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Erreur: ${ApiClient.errorMessage(e)}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -260,6 +329,13 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
   }
 
   Widget _lineCard(AppSurface s, _Line line) {
+    final stockPercentage = line.availableStock > 0 
+        ? (line.qty / line.availableStock * 100).round() 
+        : 0;
+    final stockColor = stockPercentage >= 90 
+        ? Colors.red 
+        : (stockPercentage >= 70 ? Colors.orange : Colors.green);
+    
     return AppCard(
       padding: const EdgeInsets.all(Insets.md),
       child: Row(
@@ -271,26 +347,40 @@ class _CreateTransferScreenState extends State<CreateTransferScreen> {
                 Text(line.product.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                 if (line.product.code.isNotEmpty)
                   Text(line.product.code, style: TextStyle(color: s.muted, fontSize: 12)),
+                if (line.availableStock > 0)
+                  Row(
+                    children: [
+                      Icon(Icons.inventory, size: 12, color: stockColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Disponible: ${line.availableStock}',
+                        style: TextStyle(
+                          color: stockColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
           const SizedBox(width: Insets.md),
-          SizedBox(
-            width: 80,
-            child: TextField(
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Qté',
-                contentPadding: EdgeInsets.symmetric(horizontal: Insets.sm, vertical: Insets.xs),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: line.qty > 1 ? () => setState(() => line.qty--) : null,
+                color: line.qty > 1 ? Colors.red : Colors.grey,
               ),
-              controller: TextEditingController(text: line.qty.toString()),
-              onChanged: (v) {
-                final q = int.tryParse(v);
-                if (q != null && q > 0) {
-                  setState(() => line.qty = q);
-                }
-              },
-            ),
+              Text('${line.qty}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: line.qty < line.availableStock ? () => setState(() => line.qty++) : null,
+                color: line.qty < line.availableStock ? Colors.green : Colors.grey,
+              ),
+            ],
           ),
           const SizedBox(width: Insets.sm),
           IconButton(

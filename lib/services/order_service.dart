@@ -38,19 +38,18 @@ class OrderService {
     return Order.fromJson(Map<String, dynamic>.from(res.data['data']));
   }
 
-  /// Livraison/réception : déplace le stock dépôt → boutique et passe la
-  /// commande à « Reçue ».
+  /// Réception : déplace le stock dépôt → boutique et passe la commande à « Reçue ».
   ///
   /// [received] (optionnel) = quantités réellement reçues, indexées par
   /// order_item_id. Si omis, chaque ligne reçoit la quantité demandée.
-  Future<Order> fulfill(int id, {Map<int, int>? received}) async {
+  Future<Order> receive(int id, {Map<int, int>? received}) async {
     final data = <String, dynamic>{};
     if (received != null && received.isNotEmpty) {
       data['items'] = received.entries
           .map((e) => {'order_item_id': e.key, 'quantity_received': e.value})
           .toList();
     }
-    final res = await api.dio.post('/orders/$id/fulfill', data: data);
+    final res = await api.dio.post('/orders/$id/receive', data: data);
     return Order.fromJson(Map<String, dynamic>.from(res.data['data']));
   }
 

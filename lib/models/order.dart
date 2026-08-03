@@ -40,6 +40,9 @@ class Order {
   final String status;
   final String? requesterName;
   final List<OrderItem> items;
+  final DateTime? shippedAt;
+  final DateTime? receivedAt;
+  final DateTime? cancelledAt;
 
   Order({
     required this.id,
@@ -49,6 +52,9 @@ class Order {
     required this.status,
     this.requesterName,
     this.items = const [],
+    this.shippedAt,
+    this.receivedAt,
+    this.cancelledAt,
   });
 
   /// Montant total de la commande (calculé)
@@ -66,5 +72,8 @@ class Order {
         status: json['status'] as String,
         requesterName: json['requester'] is Map ? json['requester']['name'] as String? : null,
         items: safeCastMapList(json['items']).map(OrderItem.fromJson).toList(),
+        shippedAt: json['shipped_at'] != null ? DateTime.parse(json['shipped_at'] as String) : null,
+        receivedAt: json['received_at'] != null ? DateTime.parse(json['received_at'] as String) : null,
+        cancelledAt: json['cancelled_at'] != null ? DateTime.parse(json['cancelled_at'] as String) : null,
       );
 }
